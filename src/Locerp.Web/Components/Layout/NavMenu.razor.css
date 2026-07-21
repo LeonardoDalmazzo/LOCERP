@@ -1,0 +1,126 @@
+.navbar-toggler {
+    appearance: none;
+    cursor: pointer;
+    width: 3rem;
+    height: 2.5rem;
+    color: var(--color-sidebar-text);
+    position: absolute;
+    top: 0.75rem;
+    right: 1rem;
+    border: 1px solid var(--color-sidebar-border);
+    border-radius: var(--radius-sm);
+    background:
+        linear-gradient(var(--color-sidebar-text), var(--color-sidebar-text)) center 0.72rem / 1.35rem 2px no-repeat,
+        linear-gradient(var(--color-sidebar-text), var(--color-sidebar-text)) center center / 1.35rem 2px no-repeat,
+        linear-gradient(var(--color-sidebar-text), var(--color-sidebar-text)) center 1.72rem / 1.35rem 2px no-repeat,
+        var(--color-panel);
+}
+
+.navbar-toggler:checked {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-soft);
+}
+
+.top-row {
+    min-height: 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    background: var(--color-sidebar);
+    border-bottom: 1px solid var(--color-sidebar-border);
+}
+
+.navbar-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    min-height: 2.5rem;
+    width: 100%;
+    text-decoration: none;
+}
+
+.navbar-brand span {
+    color: var(--color-primary);
+    font-size: 1.15rem;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.nav-item {
+    font-size: 0.93rem;
+    padding-bottom: 0.35rem;
+    padding-inline: var(--space-4);
+}
+
+.nav-item:first-of-type {
+    padding-top: 1rem;
+}
+
+.nav-item:last-of-type {
+    padding-bottom: 1rem;
+}
+
+.nav-item ::deep .nav-link {
+    width: 100%;
+    min-height: 2.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-sidebar-muted);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: left;
+    text-decoration: none;
+}
+
+.nav-item ::deep .nav-link i {
+    width: 1.15rem;
+    color: var(--color-sidebar-muted);
+    text-align: center;
+}
+
+.nav-item ::deep a.active {
+    background-color: var(--color-sidebar-active);
+    color: var(--color-primary);
+}
+
+.nav-item ::deep a.active i,
+.nav-item ::deep .nav-link:hover i {
+    color: var(--color-primary);
+}
+
+.nav-item ::deep .nav-link:hover {
+    background-color: var(--color-sidebar-hover);
+    color: var(--color-sidebar-text);
+}
+
+.nav-divider {
+    height: 1px;
+    margin: 0.8rem 1rem;
+    background: var(--color-sidebar-border);
+}
+
+.nav-scrollable {
+    display: none;
+}
+
+.navbar-toggler:checked ~ .nav-scrollable {
+    display: block;
+}
+
+@media (min-width: 760px) {
+    .navbar-toggler {
+        display: none;
+    }
+
+    .nav-scrollable {
+        display: block;
+        height: calc(100vh - 4rem);
+        overflow-y: auto;
+    }
+}

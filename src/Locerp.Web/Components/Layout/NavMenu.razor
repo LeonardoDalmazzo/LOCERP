@@ -1,0 +1,108 @@
+@implements IDisposable
+
+@inject NavigationManager NavigationManager
+
+<div class="top-row">
+    <a class="navbar-brand" href="">
+        <span>LOCERP</span>
+    </a>
+</div>
+
+<input type="checkbox" title="Menu de navegacao" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <i class="fa-solid fa-gauge-high" aria-hidden="true"></i> Dashboard
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="clientes">
+                <i class="fa-solid fa-users" aria-hidden="true"></i> Clientes
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="equipamentos">
+                <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> Equipamentos
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="locacoes">
+                <i class="fa-solid fa-file-signature" aria-hidden="true"></i> Locacoes
+            </NavLink>
+        </div>
+
+        <AuthorizeView Roles="@AppRoles.Gestao">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="financeiro">
+                        <i class="fa-solid fa-chart-line" aria-hidden="true"></i> Financeiro
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="@AppRoles.Administrador">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="usuarios">
+                        <i class="fa-solid fa-user-shield" aria-hidden="true"></i> Usuarios
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-divider"></div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Manage">
+                        <i class="fa-solid fa-id-badge" aria-hidden="true"></i> Conta
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <form action="Account/Logout" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                        <button type="submit" class="nav-link">
+                            <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> Sair
+                        </button>
+                    </form>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-divider"></div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login">
+                        <i class="fa-solid fa-arrow-right-to-bracket" aria-hidden="true"></i> Entrar
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

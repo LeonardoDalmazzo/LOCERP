@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row">
+            <div>
+                <strong>Sistema de Gestão Empresarial</strong>
+            </div>
+            <AuthorizeView>
+                <Authorized>
+                    <a class="account-link" href="Account/Manage">
+                        <i class="fa-solid fa-user-gear" aria-hidden="true"></i>
+                        <span>@context.User.Identity?.Name</span>
+                    </a>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">x</span>
+</div>

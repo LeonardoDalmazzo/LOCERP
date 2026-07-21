@@ -1,0 +1,93 @@
+.page {
+    position: relative;
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar {
+    background: var(--color-sidebar);
+    border-right: 1px solid var(--color-sidebar-border);
+}
+
+.top-row {
+    min-height: 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-panel);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.top-row strong {
+    display: block;
+    line-height: 1.2;
+}
+
+.top-row-kicker {
+    display: block;
+    color: var(--color-muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.account-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 48vw;
+    color: var(--color-ink);
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.account-link span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#blazor-error-ui {
+    color-scheme: light only;
+    background: var(--color-warning-bg);
+    bottom: 0;
+    box-shadow: var(--shadow-sm);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+@media (min-width: 760px) {
+    .page {
+        flex-direction: row;
+    }
+
+    .sidebar {
+        width: 264px;
+        height: 100vh;
+        position: sticky;
+        top: 0;
+    }
+}

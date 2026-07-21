@@ -1,0 +1,463 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-base);
+}
+
+a {
+    color: var(--color-primary);
+}
+
+a,
+button {
+    touch-action: manipulation;
+}
+
+.btn {
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 2.45rem;
+    padding: 0.65rem 1rem;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.btn:hover,
+.btn:focus {
+    text-decoration: none;
+}
+
+.btn-primary {
+    color: var(--color-primary-contrast);
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    color: var(--color-primary-contrast);
+    background-color: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+}
+
+.btn-danger {
+    color: var(--color-primary-contrast);
+    background-color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+    color: var(--color-primary-contrast);
+    background-color: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+}
+
+.btn-link {
+    min-height: auto;
+    padding: 0;
+    border-color: transparent;
+    background: none;
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.btn-lg {
+    min-height: 3rem;
+    padding: 0.8rem 1.1rem;
+    font-size: 1rem;
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.mb-3 {
+    margin-bottom: var(--space-4);
+}
+
+.text-danger {
+    color: var(--color-danger);
+}
+
+.text-secondary {
+    color: var(--color-muted);
+}
+
+.row {
+    display: grid;
+    gap: var(--space-5);
+}
+
+[class^="col-"],
+[class*=" col-"] {
+    min-width: 0;
+}
+
+.nav {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.nav-pills {
+    gap: var(--space-2);
+}
+
+.nav-link {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.form-label,
+.form-floating > label {
+    display: inline-block;
+    margin-bottom: var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.form-control {
+    display: block;
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-panel);
+    color: var(--color-ink);
+    font: inherit;
+    line-height: 1.35;
+}
+
+.form-control:disabled {
+    background: var(--color-panel-muted);
+    color: var(--color-muted);
+}
+
+.form-control::placeholder {
+    color: var(--color-muted);
+    opacity: 0.72;
+}
+
+.form-floating {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.form-check-input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    border: 1px solid var(--color-border);
+    accent-color: var(--color-primary);
+}
+
+.checkbox label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.input-group {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+    border-color: var(--color-focus);
+    outline: none;
+    box-shadow: 0 0 0 0.15rem rgba(var(--color-primary-rgb), 0.22);
+}
+
+.content {
+    padding: var(--space-5);
+}
+
+h1:focus {
+    outline: none;
+}
+
+.erp-page {
+    display: grid;
+    gap: var(--space-5);
+    max-width: 1180px;
+    margin: 0 auto;
+}
+
+.page-header {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.15;
+}
+
+.page-header p {
+    margin: var(--space-2) 0 0;
+    color: var(--color-muted);
+}
+
+.eyebrow {
+    display: block;
+    margin-bottom: var(--space-2);
+    color: var(--color-primary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.metric-grid,
+.module-grid,
+.status-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+.metric-card,
+.module-card,
+.panel {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-panel);
+    box-shadow: var(--shadow-sm);
+}
+
+.metric-card {
+    min-height: 132px;
+    padding: var(--space-4);
+}
+
+.metric-card span,
+.metric-card small,
+.module-card span,
+.panel-muted {
+    color: var(--color-muted);
+}
+
+.metric-card strong {
+    display: block;
+    margin: var(--space-3) 0 var(--space-2);
+    font-size: 1.75rem;
+}
+
+.module-card {
+    min-height: 148px;
+    padding: var(--space-4);
+    color: var(--color-ink);
+    text-decoration: none;
+    transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.module-card:hover,
+.module-card:focus {
+    border-color: var(--color-primary);
+    color: var(--color-ink);
+    transform: translateY(-1px);
+}
+
+.module-card i {
+    color: var(--color-primary);
+    font-size: 1.35rem;
+}
+
+.module-card strong {
+    display: block;
+    margin: var(--space-3) 0 var(--space-2);
+}
+
+.panel {
+    padding: var(--space-5);
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.empty-state {
+    display: grid;
+    place-items: center;
+    min-height: 190px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-muted);
+    text-align: center;
+}
+
+.auth-form {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.auth-logo {
+    display: block;
+    width: min(230px, 78%);
+    height: auto;
+    margin: 0 auto var(--space-2);
+}
+
+.auth-logo-icon {
+    width: min(156px, 46%);
+}
+
+.auth-heading {
+    text-align: center;
+}
+
+.auth-heading span {
+    color: var(--color-primary);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.auth-heading h1 {
+    margin: var(--space-1) 0 0;
+    font-size: 1.85rem;
+    line-height: 1.15;
+}
+
+.auth-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    font-size: 0.92rem;
+}
+
+.auth-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.auth-links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    color: var(--color-muted);
+    font-size: 0.94rem;
+}
+
+.auth-form .form-control {
+    min-height: 3.35rem;
+    border-color: var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.auth-form .btn-primary {
+    min-height: 3.2rem;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid var(--color-primary);
+}
+
+.invalid {
+    outline: 1px solid var(--color-danger);
+}
+
+.validation-message {
+    color: var(--color-danger);
+}
+
+.blazor-error-boundary {
+    background: var(--color-danger);
+    color: var(--color-primary-contrast);
+    padding: var(--space-4);
+}
+
+.blazor-error-boundary::after {
+    content: "Ocorreu um erro.";
+}
+
+.darker-border-checkbox.form-check-input {
+    border-color: var(--color-muted);
+}
+
+.form-floating > .form-control-plaintext::placeholder,
+.form-floating > .form-control::placeholder {
+    color: var(--color-muted);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder,
+.form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}
+
+@media (min-width: 720px) {
+    .content {
+        padding: var(--space-6);
+    }
+
+    .page-header {
+        grid-template-columns: 1fr auto;
+        align-items: end;
+    }
+
+    .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .module-grid,
+    .status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1100px) {
+    .metric-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .module-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
