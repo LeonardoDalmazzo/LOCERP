@@ -1,0 +1,11 @@
+**/.git
+**/.agents
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/.idea
+**/*.user
+**/*.suo
+**/Data/app.db
+README.md

@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Locerp.Web/Locerp.Web.csproj" />
+  </Folder>
+</Solution>
