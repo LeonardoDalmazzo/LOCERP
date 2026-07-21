@@ -1,0 +1,42 @@
+@page "/financeiro"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = AppRoles.Gestao)]
+
+<PageTitle>Financeiro | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Financeiro</span>
+            <h1>Receitas e cobrancas</h1>
+            <p>Acompanhamento de vencimentos, recebimentos e pendencias.</p>
+        </div>
+        <button class="btn btn-primary" type="button">
+            <i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i>
+            Lancamento
+        </button>
+    </header>
+
+    <div class="status-grid">
+        <article class="metric-card">
+            <span>A receber</span>
+            <strong>R$ 0,00</strong>
+            <small>Vencimentos futuros</small>
+        </article>
+        <article class="metric-card">
+            <span>Em atraso</span>
+            <strong>R$ 0,00</strong>
+            <small>Pendencias vencidas</small>
+        </article>
+    </div>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Movimentos</h2>
+            <span class="panel-muted">0 lancamentos</span>
+        </div>
+        <div class="empty-state">
+            <span>Nenhum movimento financeiro registrado.</span>
+        </div>
+    </section>
+</section>

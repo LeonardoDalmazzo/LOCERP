@@ -1,0 +1,29 @@
+@page "/clientes"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = AppRoles.Operacao)]
+
+<PageTitle>Clientes | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Cadastro</span>
+            <h1>Clientes</h1>
+            <p>Empresas e responsaveis atendidos pela operacao.</p>
+        </div>
+        <button class="btn btn-primary" type="button">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Novo cliente
+        </button>
+    </header>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Lista de clientes</h2>
+            <span class="panel-muted">0 registros</span>
+        </div>
+        <div class="empty-state">
+            <span>Nenhum cliente cadastrado.</span>
+        </div>
+    </section>
+</section>

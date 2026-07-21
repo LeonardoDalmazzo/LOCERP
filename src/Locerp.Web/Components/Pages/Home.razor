@@ -1,0 +1,65 @@
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+<PageTitle>Dashboard | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">LOCERP</span>
+            <h1>Dashboard operacional</h1>
+            <p>Visao inicial para locacoes, equipamentos, clientes e financeiro.</p>
+        </div>
+        <a class="btn btn-primary" href="locacoes">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Nova locacao
+        </a>
+    </header>
+
+    <div class="metric-grid">
+        <article class="metric-card">
+            <span>Locacoes ativas</span>
+            <strong>0</strong>
+            <small>Contratos em andamento</small>
+        </article>
+        <article class="metric-card">
+            <span>Equipamentos</span>
+            <strong>0</strong>
+            <small>Itens cadastrados</small>
+        </article>
+        <article class="metric-card">
+            <span>Recebimentos</span>
+            <strong>R$ 0,00</strong>
+            <small>Previsto no mes</small>
+        </article>
+        <article class="metric-card">
+            <span>Clientes</span>
+            <strong>0</strong>
+            <small>Cadastros ativos</small>
+        </article>
+    </div>
+
+    <div class="module-grid">
+        <a class="module-card" href="clientes">
+            <i class="fa-solid fa-users" aria-hidden="true"></i>
+            <strong>Clientes</strong>
+            <span>Base comercial e contatos.</span>
+        </a>
+        <a class="module-card" href="equipamentos">
+            <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>
+            <strong>Equipamentos</strong>
+            <span>Catalogo, status e disponibilidade.</span>
+        </a>
+        <a class="module-card" href="locacoes">
+            <i class="fa-solid fa-file-signature" aria-hidden="true"></i>
+            <strong>Locacoes</strong>
+            <span>Contratos, periodos e devolucoes.</span>
+        </a>
+        <a class="module-card" href="financeiro">
+            <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+            <strong>Financeiro</strong>
+            <span>Receitas, cobrancas e pendencias.</span>
+        </a>
+    </div>
+</section>

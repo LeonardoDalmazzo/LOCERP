@@ -1,0 +1,29 @@
+@page "/locacoes"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = AppRoles.Operacao)]
+
+<PageTitle>Locacoes | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Operacao</span>
+            <h1>Locacoes</h1>
+            <p>Contratos, retiradas, periodos de cobranca e devolucoes.</p>
+        </div>
+        <button class="btn btn-primary" type="button">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Nova locacao
+        </button>
+    </header>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Contratos recentes</h2>
+            <span class="panel-muted">0 contratos</span>
+        </div>
+        <div class="empty-state">
+            <span>Nenhuma locacao registrada.</span>
+        </div>
+    </section>
+</section>

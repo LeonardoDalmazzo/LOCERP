@@ -1,0 +1,43 @@
+@page "/usuarios"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = AppRoles.Administrador)]
+
+<PageTitle>Usuarios | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Acesso</span>
+            <h1>Usuarios e niveis</h1>
+            <p>Controle interno de perfis: Administrador, Gerente e Operador.</p>
+        </div>
+        <a class="btn btn-primary" href="Account/Register">
+            <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+            Novo usuario
+        </a>
+    </header>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Perfis configurados</h2>
+            <span class="panel-muted">3 niveis</span>
+        </div>
+        <div class="module-grid">
+            <article class="module-card">
+                <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
+                <strong>Administrador</strong>
+                <span>Acesso total ao sistema.</span>
+            </article>
+            <article class="module-card">
+                <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
+                <strong>Gerente</strong>
+                <span>Operacao e financeiro.</span>
+            </article>
+            <article class="module-card">
+                <i class="fa-solid fa-helmet-safety" aria-hidden="true"></i>
+                <strong>Operador</strong>
+                <span>Clientes, equipamentos e locacoes.</span>
+            </article>
+        </div>
+    </section>
+</section>

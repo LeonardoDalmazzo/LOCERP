@@ -1,0 +1,42 @@
+@page "/equipamentos"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = AppRoles.Operacao)]
+
+<PageTitle>Equipamentos | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Patrimonio</span>
+            <h1>Equipamentos</h1>
+            <p>Catalogo operacional para locacao e controle de disponibilidade.</p>
+        </div>
+        <button class="btn btn-primary" type="button">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Novo equipamento
+        </button>
+    </header>
+
+    <div class="status-grid">
+        <article class="metric-card">
+            <span>Disponiveis</span>
+            <strong>0</strong>
+            <small>Prontos para locacao</small>
+        </article>
+        <article class="metric-card">
+            <span>Locados</span>
+            <strong>0</strong>
+            <small>Em contratos ativos</small>
+        </article>
+    </div>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Inventario</h2>
+            <span class="panel-muted">0 itens</span>
+        </div>
+        <div class="empty-state">
+            <span>Nenhum equipamento cadastrado.</span>
+        </div>
+    </section>
+</section>
