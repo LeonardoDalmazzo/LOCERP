@@ -7,6 +7,7 @@
 @using Locerp.Web.Data
 
 @inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
 @inject ILogger<Login> Logger
 @inject IdentityRedirectManager RedirectManager
 
@@ -90,6 +91,28 @@
 
         if (result.Succeeded)
         {
+            var user = await UserManager.FindByEmailAsync(Input.Email);
+            if (user is not null && !user.IsActive)
+            {
+                await SignInManager.SignOutAsync();
+                errorMessage = "Erro: conta inativa. Solicite a liberacao do acesso ao administrador.";
+                return;
+            }
+
+            if (user?.MustChangePassword == true)
+            {
+                if (user.TemporaryPasswordExpiresAt is not null && user.TemporaryPasswordExpiresAt <= DateTimeOffset.UtcNow)
+                {
+                    await SignInManager.SignOutAsync();
+                    errorMessage = "Erro: senha provisoria expirada. Solicite uma nova senha ao administrador.";
+                    return;
+                }
+
+                Logger.LogInformation("User logged in with a temporary password and must change it.");
+                RedirectManager.RedirectTo("Account/Manage/ChangePassword");
+                return;
+            }
+
             Logger.LogInformation("User logged in.");
             RedirectManager.RedirectTo(ReturnUrl);
         }

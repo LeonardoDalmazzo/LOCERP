@@ -1,0 +1,1193 @@
+@page "/funcionarios"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Cryptography
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Locerp.Web.Data
+@attribute [Authorize(Roles = AppRoles.Administrador)]
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Funcionario | LOCERP</PageTitle>
+
+<section class="erp-page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">Acesso interno</span>
+            <h1>Funcionario</h1>
+            <p>Cadastro de contas, perfis, contato e senha provisoria da equipe.</p>
+        </div>
+        <button class="btn btn-primary" type="button" @onclick="OpenNewEmployeeForm">
+            <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+            Novo funcionario
+        </button>
+    </header>
+
+    @if (!isEmployeeFormOpen && !string.IsNullOrWhiteSpace(formMessage))
+    {
+        <div class="alert @(formMessageIsError ? "alert-danger" : "alert-success")" role="status">
+            @formMessage
+        </div>
+    }
+
+    @if (!isEmployeeFormOpen && !string.IsNullOrWhiteSpace(lastTemporaryPassword))
+    {
+        <div class="alert alert-success" role="status">
+            <strong>Senha provisoria de @lastTemporaryPasswordEmployeeName:</strong>
+            <code>@lastTemporaryPassword</code>
+            <span>Expira em 24 horas.</span>
+        </div>
+    }
+
+    <section class="customer-toolbar" aria-label="Busca de funcionarios">
+        <div class="customer-search">
+            <label class="visually-hidden" for="employeeSearch">Buscar funcionario</label>
+            <input @bind="employeeSearchText"
+                   @bind:event="oninput"
+                   @onkeydown="HandleEmployeeSearchKeyDown"
+                   id="employeeSearch"
+                   class="form-control"
+                   placeholder="Buscar por nome, email ou telefone" />
+            <button class="btn btn-primary search-button" type="button" @onclick="ApplyEmployeeSearchAsync" aria-label="Pesquisar funcionarios">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            </button>
+        </div>
+        <button class="btn advanced-search-button" type="button" @onclick="OpenAdvancedSearch">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+            Busca avancada
+            @if (ActiveAdvancedFilterCount > 0)
+            {
+                <span class="filter-count">@ActiveAdvancedFilterCount</span>
+            }
+        </button>
+    </section>
+
+    @if (isEmployeeFormOpen)
+    {
+        <div class="lightbox-backdrop" role="presentation">
+            <section class="panel lightbox-dialog lightbox-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="employeeFormTitle">
+                <div class="panel-header lightbox-header">
+                    <h2 id="employeeFormTitle">@(editingEmployeeId is null ? "Novo funcionario" : "Editar funcionario")</h2>
+                    <button class="btn btn-link lightbox-close" type="button" @onclick="CloseEmployeeForm" aria-label="Fechar">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(formMessage))
+                {
+                    <div class="alert @(formMessageIsError ? "alert-danger" : "alert-success")" role="status">
+                        @formMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(lastTemporaryPassword))
+                {
+                    <div class="alert alert-success" role="status">
+                        <strong>Senha provisoria de @lastTemporaryPasswordEmployeeName:</strong>
+                        <code>@lastTemporaryPassword</code>
+                        <span>Expira em 24 horas.</span>
+                    </div>
+                }
+
+                <EditForm Model="employeeInput" FormName="employee-registration" OnValidSubmit="SaveEmployeeAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" role="alert" />
+
+                    <div class="form-grid">
+                        <div class="form-floating">
+                            <label for="employeeDisplayName">Nome</label>
+                            <InputText @bind-Value="employeeInput.DisplayName" id="employeeDisplayName" class="form-control" autocomplete="name" placeholder="Nome completo" />
+                            <ValidationMessage For="() => employeeInput.DisplayName" class="text-danger" />
+                        </div>
+
+                        <div class="form-floating">
+                            <label for="employeeEmail">Email</label>
+                            <InputText @bind-Value="employeeInput.Email" id="employeeEmail" class="form-control" autocomplete="username" placeholder="funcionario@email.com" />
+                            <ValidationMessage For="() => employeeInput.Email" class="text-danger" />
+                        </div>
+
+                        <div class="form-floating">
+                            <label for="employeePhone">Telefone de contato</label>
+                            <input value="@employeeInput.PhoneNumber"
+                                   @oninput="MaskEmployeePhoneInput"
+                                   id="employeePhone"
+                                   class="form-control"
+                                   maxlength="15"
+                                   inputmode="numeric"
+                                   autocomplete="tel"
+                                   placeholder="(00) 00000-0000" />
+                            <ValidationMessage For="() => employeeInput.PhoneNumber" class="text-danger" />
+                        </div>
+
+                        <div class="form-floating">
+                            <label for="employeeStatus">Status</label>
+                            <InputSelect @bind-Value="employeeInput.IsActive" id="employeeStatus" class="form-control">
+                                <option value="true">Ativo</option>
+                                <option value="false">Inativo</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="form-floating span-2">
+                            <label>Perfis</label>
+                            <div class="checkbox-grid">
+                                @foreach (var role in AppRoles.All)
+                                {
+                                    <label class="checkbox-option">
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               checked="@employeeInput.RoleNames.Contains(role)"
+                                               @onchange="args => ToggleEmployeeRole(role, args)" />
+                                        <span>@FormatRole(role)</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+
+                        @if (editingEmployeeId is null)
+                        {
+                            <div class="form-floating span-2">
+                                <label for="temporaryPassword">Senha provisoria</label>
+                                <div class="customer-search">
+                                    <InputText @bind-Value="employeeInput.TemporaryPassword" id="temporaryPassword" class="form-control" autocomplete="new-password" placeholder="Senha provisoria" />
+                                    <button class="btn" type="button" @onclick="GenerateEmployeeTemporaryPassword">
+                                        <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+                                        Gerar
+                                    </button>
+                                </div>
+                                <ValidationMessage For="() => employeeInput.TemporaryPassword" class="text-danger" />
+                            </div>
+                        }
+                    </div>
+
+                    @if (editingEmployeeId is not null)
+                    {
+                        <div class="form-section">
+                            <div class="section-title">
+                                <div>
+                                    <h3>Senha provisoria</h3>
+                                    <span>Gere uma nova senha temporaria quando o funcionario precisar recuperar o acesso.</span>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn" type="button" @onclick="() => OpenTemporaryPasswordDialogAsync(editingEmployeeId)">
+                                    <i class="fa-solid fa-key" aria-hidden="true"></i>
+                                    Gerar senha provisoria
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="form-actions">
+                        <button type="button" class="btn" @onclick="CloseEmployeeForm">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary" disabled="@(!CanSaveEmployee)">
+                            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                            @(isSaving ? "Salvando..." : editingEmployeeId is null ? "Criar funcionario" : "Salvar alteracoes")
+                        </button>
+                    </div>
+                </EditForm>
+            </section>
+        </div>
+    }
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Lista de funcionarios</h2>
+            <span class="panel-muted">@employees.Count registro(s)</span>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="empty-state">
+                <span>Carregando funcionarios...</span>
+            </div>
+        }
+        else if (employees.Count == 0)
+        {
+            <div class="empty-state">
+                <span>Nenhum funcionario encontrado.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data-table data-table-nowrap employee-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Telefone</th>
+                            <th>Perfis</th>
+                            <th>Criado em</th>
+                            <th>Senha provisoria</th>
+                            <th>Status</th>
+                            <th class="text-end">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var employee in employees)
+                        {
+                            <tr>
+                                <td><strong>@employee.DisplayName</strong></td>
+                                <td>@employee.Email</td>
+                                <td>@FirstFilled(employee.PhoneNumber)</td>
+                                <td>@FormatRoles(employee.RoleNames)</td>
+                                <td>@employee.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    <span class="status-pill @GetTemporaryPasswordCssClass(employee)">
+                                        @FormatTemporaryPasswordStatus(employee)
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-pill @(employee.IsActive ? "status-pill-active" : "status-pill-inactive")">
+                                        @(employee.IsActive ? "Ativo" : "Inativo")
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="action-buttons">
+                                        <button class="btn btn-link action-icon" type="button" @onclick="() => EditEmployeeAsync(employee.Id)" aria-label="Editar funcionario">
+                                            <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                                        </button>
+                                        <button class="btn btn-link action-icon" type="button" @onclick="() => OpenTemporaryPasswordDialogAsync(employee.Id)" aria-label="Gerar senha provisoria">
+                                            <i class="fa-solid fa-key" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @if (isTemporaryPasswordDialogOpen && temporaryPasswordEmployee is not null)
+    {
+        var hasActiveTemporaryPassword = HasActiveTemporaryPassword(temporaryPasswordEmployee);
+
+        <div class="lightbox-backdrop" role="presentation">
+            <section class="panel lightbox-dialog" role="dialog" aria-modal="true" aria-labelledby="temporaryPasswordTitle">
+                <div class="lightbox-header">
+                    <h3 id="temporaryPasswordTitle">Senha provisoria</h3>
+                    <button class="btn btn-link lightbox-close" type="button" @onclick="CloseTemporaryPasswordDialog" aria-label="Fechar">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(temporaryPasswordDialogMessage))
+                {
+                    <div class="alert @(temporaryPasswordDialogMessageIsError ? "alert-danger" : "alert-success")" role="status">
+                        @temporaryPasswordDialogMessage
+                    </div>
+                }
+
+                <div class="details-grid">
+                    <div>
+                        <span>Funcionario</span>
+                        <strong>@temporaryPasswordEmployee.DisplayName</strong>
+                    </div>
+                    <div>
+                        <span>Email</span>
+                        <strong>@temporaryPasswordEmployee.Email</strong>
+                    </div>
+                </div>
+
+                @if (hasActiveTemporaryPassword)
+                {
+                    <div class="details-block">
+                        <span>Tempo restante</span>
+                        <strong>@FormatTemporaryPasswordTimeRemaining(temporaryPasswordEmployee.TemporaryPasswordExpiresAt)</strong>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(temporaryPasswordDialogPassword))
+                    {
+                        <div class="alert alert-success" role="status">
+                            <strong>Senha provisoria atual:</strong>
+                            <code>@temporaryPasswordDialogPassword</code>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            Ja existe uma senha provisoria ativa. Por seguranca, a senha so pode ser exibida quando foi gerada nesta sessao.
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-danger" role="alert">
+                        Gerar uma senha provisoria substitui a senha atual deste usuario. A nova senha expira em 24 horas e o funcionario sera enviado para alterar a senha no proximo login.
+                    </div>
+                }
+
+                <div class="lightbox-actions">
+                    <button class="btn" type="button" @onclick="CloseTemporaryPasswordDialog">
+                        @(hasActiveTemporaryPassword ? "Fechar" : "Cancelar")
+                    </button>
+                    @if (!hasActiveTemporaryPassword)
+                    {
+                        <button class="btn btn-primary" type="button" @onclick="ConfirmIssueTemporaryPasswordAsync" disabled="@isIssuingTemporaryPassword">
+                            <i class="fa-solid fa-key" aria-hidden="true"></i>
+                            @(isIssuingTemporaryPassword ? "Gerando..." : "Confirmar")
+                        </button>
+                    }
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (isAdvancedSearchOpen)
+    {
+        <div class="lightbox-backdrop" role="presentation">
+            <section class="panel lightbox-dialog lightbox-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="advancedEmployeeSearchTitle">
+                <div class="lightbox-header">
+                    <h3 id="advancedEmployeeSearchTitle">Busca avancada</h3>
+                    <button class="btn btn-link lightbox-close" type="button" @onclick="CloseAdvancedSearch" aria-label="Fechar">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-floating">
+                        <label for="advancedEmployeeStatus">Status</label>
+                        <InputSelect @bind-Value="advancedSearch.Status" id="advancedEmployeeStatus" class="form-control">
+                            <option value="">Todos</option>
+                            <option value="@EmployeeStatusActive">Ativos</option>
+                            <option value="@EmployeeStatusInactive">Inativos</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="advancedTemporaryPassword">Senha provisoria</label>
+                        <InputSelect @bind-Value="advancedSearch.TemporaryPasswordStatus" id="advancedTemporaryPassword" class="form-control">
+                            <option value="">Todas</option>
+                            <option value="@TemporaryPasswordStatusActive">Ativa</option>
+                            <option value="@TemporaryPasswordStatusExpired">Expirada</option>
+                            <option value="@TemporaryPasswordStatusNone">Sem pendencia</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-floating span-2">
+                        <label>Perfis</label>
+                        <div class="checkbox-grid">
+                            @foreach (var role in AppRoles.All)
+                            {
+                                <label class="checkbox-option">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           checked="@advancedSearch.RoleNames.Contains(role)"
+                                           @onchange="args => ToggleAdvancedRole(role, args)" />
+                                    <span>@FormatRole(role)</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lightbox-actions">
+                    <button class="btn" type="button" @onclick="ClearAdvancedSearchAsync">
+                        Limpar filtros
+                    </button>
+                    <button class="btn" type="button" @onclick="CloseAdvancedSearch">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-primary" type="button" @onclick="ApplyAdvancedSearchAsync">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        Pesquisar
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+</section>
+
+@code {
+    private const string EmployeeStatusActive = "Active";
+    private const string EmployeeStatusInactive = "Inactive";
+    private const string TemporaryPasswordStatusActive = "Active";
+    private const string TemporaryPasswordStatusExpired = "Expired";
+    private const string TemporaryPasswordStatusNone = "None";
+
+    private List<EmployeeListItem> employees = [];
+    private EmployeeInput employeeInput = CreateDefaultEmployeeInput();
+    private EmployeeAdvancedSearch advancedSearch = new();
+    private EmployeeAdvancedSearch appliedAdvancedSearch = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isEmployeeFormOpen;
+    private bool isAdvancedSearchOpen;
+    private string? editingEmployeeId;
+    private string employeeSearchText = "";
+    private string appliedEmployeeSearch = "";
+    private string? formMessage;
+    private bool formMessageIsError;
+    private string? lastTemporaryPassword;
+    private string? lastTemporaryPasswordEmployeeName;
+    private readonly Dictionary<string, string> visibleTemporaryPasswords = [];
+    private EmployeeListItem? temporaryPasswordEmployee;
+    private bool isTemporaryPasswordDialogOpen;
+    private bool isIssuingTemporaryPassword;
+    private string? temporaryPasswordDialogPassword;
+    private string? temporaryPasswordDialogMessage;
+    private bool temporaryPasswordDialogMessageIsError;
+
+    private bool CanSaveEmployee =>
+        !isSaving
+        && employeeInput.RoleNames.Count > 0
+        && (editingEmployeeId is not null || !string.IsNullOrWhiteSpace(employeeInput.TemporaryPassword));
+
+    private int ActiveAdvancedFilterCount => appliedAdvancedSearch.ActiveFilterCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployeesAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        isLoading = true;
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var users = await dbContext.Users
+            .AsNoTracking()
+            .OrderByDescending(user => user.CreatedAt)
+            .ToListAsync();
+
+        var roleAssignments = await dbContext.UserRoles
+            .AsNoTracking()
+            .Join(
+                dbContext.Roles.AsNoTracking(),
+                userRole => userRole.RoleId,
+                role => role.Id,
+                (userRole, role) => new { userRole.UserId, RoleName = role.Name ?? "" })
+            .ToListAsync();
+
+        var rolesByUserId = roleAssignments
+            .Where(assignment => !string.IsNullOrWhiteSpace(assignment.RoleName))
+            .GroupBy(assignment => assignment.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group.Select(assignment => assignment.RoleName).OrderBy(FormatRole).ToList());
+
+        var now = DateTimeOffset.UtcNow;
+        var filteredEmployees = users
+            .Select(user => new EmployeeListItem(
+                user.Id,
+                string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email ?? user.UserName ?? "Funcionario" : user.DisplayName,
+                user.Email ?? user.UserName ?? "",
+                user.PhoneNumber,
+                user.IsActive,
+                user.MustChangePassword,
+                user.TemporaryPasswordExpiresAt,
+                user.CreatedAt,
+                rolesByUserId.TryGetValue(user.Id, out var roleNames) ? roleNames : []))
+            .Where(employee => MatchesSearch(employee, appliedEmployeeSearch))
+            .Where(employee => MatchesAdvancedSearch(employee, appliedAdvancedSearch, now))
+            .ToList();
+
+        employees = filteredEmployees;
+        isLoading = false;
+    }
+
+    private async Task ApplyEmployeeSearchAsync()
+    {
+        appliedEmployeeSearch = CompactText(employeeSearchText);
+        await LoadEmployeesAsync();
+    }
+
+    private async Task HandleEmployeeSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await ApplyEmployeeSearchAsync();
+        }
+    }
+
+    private void OpenNewEmployeeForm()
+    {
+        employeeInput = CreateDefaultEmployeeInput();
+        editingEmployeeId = null;
+        isEmployeeFormOpen = true;
+        formMessage = null;
+        lastTemporaryPassword = null;
+        lastTemporaryPasswordEmployeeName = null;
+    }
+
+    private async Task EditEmployeeAsync(string employeeId)
+    {
+        var user = await UserManager.FindByIdAsync(employeeId);
+        if (user is null)
+        {
+            SetFormError("Funcionario nao localizado para edicao.");
+            return;
+        }
+
+        var roles = await UserManager.GetRolesAsync(user);
+        employeeInput = new EmployeeInput
+        {
+            DisplayName = user.DisplayName,
+            Email = user.Email ?? user.UserName ?? "",
+            PhoneNumber = FormatPhoneInput(user.PhoneNumber),
+            IsActive = user.IsActive
+        };
+
+        foreach (var role in roles.Where(role => AppRoles.All.Contains(role)))
+        {
+            employeeInput.RoleNames.Add(role);
+        }
+
+        editingEmployeeId = user.Id;
+        isEmployeeFormOpen = true;
+        formMessage = null;
+        lastTemporaryPassword = null;
+        lastTemporaryPasswordEmployeeName = null;
+    }
+
+    private void CloseEmployeeForm()
+    {
+        isEmployeeFormOpen = false;
+        editingEmployeeId = null;
+        employeeInput = CreateDefaultEmployeeInput();
+        formMessage = null;
+    }
+
+    private async Task SaveEmployeeAsync()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        if (employeeInput.RoleNames.Count == 0)
+        {
+            SetFormError("Selecione ao menos um perfil para o funcionario.");
+            return;
+        }
+
+        isSaving = true;
+        formMessage = null;
+        lastTemporaryPassword = null;
+        lastTemporaryPasswordEmployeeName = null;
+
+        try
+        {
+            if (editingEmployeeId is null)
+            {
+                await CreateEmployeeAsync();
+            }
+            else
+            {
+                await UpdateEmployeeAsync(editingEmployeeId);
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CreateEmployeeAsync()
+    {
+        var email = CompactText(employeeInput.Email);
+        if (string.IsNullOrWhiteSpace(employeeInput.TemporaryPassword))
+        {
+            SetFormError("Informe a senha provisoria.");
+            return;
+        }
+
+        var existingUser = await UserManager.FindByEmailAsync(email);
+        if (existingUser is not null)
+        {
+            SetFormError("Ja existe um funcionario cadastrado com este email.");
+            return;
+        }
+
+        var temporaryPassword = employeeInput.TemporaryPassword;
+        var user = new ApplicationUser
+        {
+            DisplayName = CompactText(employeeInput.DisplayName),
+            Email = email,
+            UserName = email,
+            EmailConfirmed = true,
+            PhoneNumber = TrimToNull(FormatPhoneInput(employeeInput.PhoneNumber)),
+            IsActive = employeeInput.IsActive,
+            MustChangePassword = true,
+            TemporaryPasswordExpiresAt = DateTimeOffset.UtcNow.AddHours(24)
+        };
+
+        var createResult = await UserManager.CreateAsync(user, temporaryPassword);
+        if (!createResult.Succeeded)
+        {
+            SetIdentityErrors(createResult.Errors);
+            return;
+        }
+
+        var roleResult = await UserManager.AddToRolesAsync(user, employeeInput.RoleNames);
+        if (!roleResult.Succeeded)
+        {
+            SetIdentityErrors(roleResult.Errors);
+            return;
+        }
+
+        isEmployeeFormOpen = false;
+        editingEmployeeId = null;
+        formMessage = "Funcionario criado com sucesso.";
+        formMessageIsError = false;
+        lastTemporaryPassword = temporaryPassword;
+        lastTemporaryPasswordEmployeeName = user.DisplayName;
+        visibleTemporaryPasswords[user.Id] = temporaryPassword;
+        employeeInput = CreateDefaultEmployeeInput();
+        await LoadEmployeesAsync();
+    }
+
+    private async Task UpdateEmployeeAsync(string employeeId)
+    {
+        var user = await UserManager.FindByIdAsync(employeeId);
+        if (user is null)
+        {
+            SetFormError("Funcionario nao localizado para edicao.");
+            return;
+        }
+
+        var email = CompactText(employeeInput.Email);
+        var existingUser = await UserManager.FindByEmailAsync(email);
+        if (existingUser is not null && existingUser.Id != user.Id)
+        {
+            SetFormError("Ja existe outro funcionario cadastrado com este email.");
+            return;
+        }
+
+        user.DisplayName = CompactText(employeeInput.DisplayName);
+        user.IsActive = employeeInput.IsActive;
+        user.EmailConfirmed = true;
+
+        if (!string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase))
+        {
+            var emailResult = await UserManager.SetEmailAsync(user, email);
+            if (!emailResult.Succeeded)
+            {
+                SetIdentityErrors(emailResult.Errors);
+                return;
+            }
+
+            var userNameResult = await UserManager.SetUserNameAsync(user, email);
+            if (!userNameResult.Succeeded)
+            {
+                SetIdentityErrors(userNameResult.Errors);
+                return;
+            }
+        }
+
+        var phoneNumber = TrimToNull(FormatPhoneInput(employeeInput.PhoneNumber));
+        if (!string.Equals(user.PhoneNumber, phoneNumber, StringComparison.Ordinal))
+        {
+            var phoneResult = await UserManager.SetPhoneNumberAsync(user, phoneNumber);
+            if (!phoneResult.Succeeded)
+            {
+                SetIdentityErrors(phoneResult.Errors);
+                return;
+            }
+        }
+
+        var updateResult = await UserManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            SetIdentityErrors(updateResult.Errors);
+            return;
+        }
+
+        var currentRoles = await UserManager.GetRolesAsync(user);
+        var selectedRoles = employeeInput.RoleNames.ToHashSet(StringComparer.Ordinal);
+        var rolesToRemove = currentRoles.Where(role => !selectedRoles.Contains(role)).ToList();
+        var rolesToAdd = selectedRoles.Where(role => !currentRoles.Contains(role)).ToList();
+
+        if (rolesToRemove.Count > 0)
+        {
+            var removeResult = await UserManager.RemoveFromRolesAsync(user, rolesToRemove);
+            if (!removeResult.Succeeded)
+            {
+                SetIdentityErrors(removeResult.Errors);
+                return;
+            }
+        }
+
+        if (rolesToAdd.Count > 0)
+        {
+            var addResult = await UserManager.AddToRolesAsync(user, rolesToAdd);
+            if (!addResult.Succeeded)
+            {
+                SetIdentityErrors(addResult.Errors);
+                return;
+            }
+        }
+
+        isEmployeeFormOpen = false;
+        editingEmployeeId = null;
+        formMessage = "Funcionario atualizado com sucesso.";
+        formMessageIsError = false;
+        employeeInput = CreateDefaultEmployeeInput();
+        await LoadEmployeesAsync();
+    }
+
+    private async Task OpenTemporaryPasswordDialogAsync(string? employeeId)
+    {
+        if (string.IsNullOrWhiteSpace(employeeId))
+        {
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(employeeId);
+        if (user is null)
+        {
+            SetFormError("Funcionario nao localizado para senha provisoria.");
+            return;
+        }
+
+        temporaryPasswordEmployee = await BuildEmployeeListItemAsync(user);
+        temporaryPasswordDialogPassword = GetVisibleTemporaryPassword(user.Id, user.TemporaryPasswordExpiresAt);
+        temporaryPasswordDialogMessage = null;
+        temporaryPasswordDialogMessageIsError = false;
+        isTemporaryPasswordDialogOpen = true;
+    }
+
+    private void CloseTemporaryPasswordDialog()
+    {
+        isTemporaryPasswordDialogOpen = false;
+        temporaryPasswordEmployee = null;
+        temporaryPasswordDialogPassword = null;
+        temporaryPasswordDialogMessage = null;
+        isIssuingTemporaryPassword = false;
+    }
+
+    private async Task ConfirmIssueTemporaryPasswordAsync()
+    {
+        if (temporaryPasswordEmployee is null || isIssuingTemporaryPassword)
+        {
+            return;
+        }
+
+        if (HasActiveTemporaryPassword(temporaryPasswordEmployee))
+        {
+            temporaryPasswordDialogMessage = "Este funcionario ja tem uma senha provisoria ativa.";
+            temporaryPasswordDialogMessageIsError = true;
+            return;
+        }
+
+        isIssuingTemporaryPassword = true;
+        temporaryPasswordDialogMessage = null;
+
+        var user = await UserManager.FindByIdAsync(temporaryPasswordEmployee.Id);
+        if (user is null)
+        {
+            temporaryPasswordDialogMessage = "Funcionario nao localizado para senha provisoria.";
+            temporaryPasswordDialogMessageIsError = true;
+            isIssuingTemporaryPassword = false;
+            return;
+        }
+
+        if (HasActiveTemporaryPassword(user))
+        {
+            temporaryPasswordEmployee = await BuildEmployeeListItemAsync(user);
+            temporaryPasswordDialogPassword = GetVisibleTemporaryPassword(user.Id, user.TemporaryPasswordExpiresAt);
+            temporaryPasswordDialogMessage = "Este funcionario ja tem uma senha provisoria ativa.";
+            temporaryPasswordDialogMessageIsError = true;
+            isIssuingTemporaryPassword = false;
+            return;
+        }
+
+        var temporaryPassword = GenerateTemporaryPassword();
+        var resetToken = await UserManager.GeneratePasswordResetTokenAsync(user);
+        var resetResult = await UserManager.ResetPasswordAsync(user, resetToken, temporaryPassword);
+        if (!resetResult.Succeeded)
+        {
+            SetTemporaryPasswordDialogErrors(resetResult.Errors);
+            isIssuingTemporaryPassword = false;
+            return;
+        }
+
+        user.MustChangePassword = true;
+        user.TemporaryPasswordExpiresAt = DateTimeOffset.UtcNow.AddHours(24);
+        user.EmailConfirmed = true;
+
+        var updateResult = await UserManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            SetTemporaryPasswordDialogErrors(updateResult.Errors);
+            isIssuingTemporaryPassword = false;
+            return;
+        }
+
+        formMessage = "Senha provisoria gerada com sucesso.";
+        formMessageIsError = false;
+        lastTemporaryPassword = temporaryPassword;
+        lastTemporaryPasswordEmployeeName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email ?? "funcionario" : user.DisplayName;
+        visibleTemporaryPasswords[user.Id] = temporaryPassword;
+        temporaryPasswordEmployee = await BuildEmployeeListItemAsync(user);
+        temporaryPasswordDialogPassword = temporaryPassword;
+        temporaryPasswordDialogMessage = "Senha provisoria gerada com sucesso.";
+        temporaryPasswordDialogMessageIsError = false;
+        isIssuingTemporaryPassword = false;
+        await LoadEmployeesAsync();
+    }
+
+    private void GenerateEmployeeTemporaryPassword()
+    {
+        employeeInput.TemporaryPassword = GenerateTemporaryPassword();
+    }
+
+    private void MaskEmployeePhoneInput(ChangeEventArgs args)
+    {
+        employeeInput.PhoneNumber = FormatPhoneInput(args.Value?.ToString());
+    }
+
+    private void ToggleEmployeeRole(string role, ChangeEventArgs args)
+    {
+        if (args.Value is bool isChecked && isChecked)
+        {
+            employeeInput.RoleNames.Add(role);
+            return;
+        }
+
+        employeeInput.RoleNames.Remove(role);
+    }
+
+    private void OpenAdvancedSearch()
+    {
+        advancedSearch = appliedAdvancedSearch.Clone();
+        isAdvancedSearchOpen = true;
+    }
+
+    private void CloseAdvancedSearch()
+    {
+        isAdvancedSearchOpen = false;
+    }
+
+    private async Task ApplyAdvancedSearchAsync()
+    {
+        appliedAdvancedSearch = advancedSearch.Clone();
+        isAdvancedSearchOpen = false;
+        await LoadEmployeesAsync();
+    }
+
+    private async Task ClearAdvancedSearchAsync()
+    {
+        advancedSearch = new();
+        appliedAdvancedSearch = new();
+        isAdvancedSearchOpen = false;
+        await LoadEmployeesAsync();
+    }
+
+    private void ToggleAdvancedRole(string role, ChangeEventArgs args)
+    {
+        if (args.Value is bool isChecked && isChecked)
+        {
+            advancedSearch.RoleNames.Add(role);
+            return;
+        }
+
+        advancedSearch.RoleNames.Remove(role);
+    }
+
+    private static bool MatchesSearch(EmployeeListItem employee, string search)
+    {
+        var normalizedSearch = TrimToNull(search);
+        if (normalizedSearch is null)
+        {
+            return true;
+        }
+
+        return ContainsText(employee.DisplayName, normalizedSearch)
+            || ContainsText(employee.Email, normalizedSearch)
+            || ContainsText(employee.PhoneNumber, normalizedSearch);
+    }
+
+    private static bool MatchesAdvancedSearch(EmployeeListItem employee, EmployeeAdvancedSearch search, DateTimeOffset now)
+    {
+        if (search.Status == EmployeeStatusActive && !employee.IsActive)
+        {
+            return false;
+        }
+
+        if (search.Status == EmployeeStatusInactive && employee.IsActive)
+        {
+            return false;
+        }
+
+        if (search.RoleNames.Count > 0 && !employee.RoleNames.Any(search.RoleNames.Contains))
+        {
+            return false;
+        }
+
+        return search.TemporaryPasswordStatus switch
+        {
+            TemporaryPasswordStatusActive => employee.MustChangePassword && employee.TemporaryPasswordExpiresAt > now,
+            TemporaryPasswordStatusExpired => employee.MustChangePassword && employee.TemporaryPasswordExpiresAt <= now,
+            TemporaryPasswordStatusNone => !employee.MustChangePassword,
+            _ => true
+        };
+    }
+
+    private static EmployeeInput CreateDefaultEmployeeInput()
+    {
+        var input = new EmployeeInput
+        {
+            TemporaryPassword = GenerateTemporaryPassword()
+        };
+        input.RoleNames.Add(AppRoles.Vendedor);
+        return input;
+    }
+
+    private void SetFormError(string message)
+    {
+        formMessage = message;
+        formMessageIsError = true;
+    }
+
+    private void SetIdentityErrors(IEnumerable<IdentityError> errors)
+    {
+        SetFormError(string.Join(" ", errors.Select(error => error.Description)));
+    }
+
+    private void SetTemporaryPasswordDialogErrors(IEnumerable<IdentityError> errors)
+    {
+        temporaryPasswordDialogMessage = string.Join(" ", errors.Select(error => error.Description));
+        temporaryPasswordDialogMessageIsError = true;
+    }
+
+    private async Task<EmployeeListItem> BuildEmployeeListItemAsync(ApplicationUser user)
+    {
+        var roles = await UserManager.GetRolesAsync(user);
+
+        return new EmployeeListItem(
+            user.Id,
+            string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email ?? user.UserName ?? "Funcionario" : user.DisplayName,
+            user.Email ?? user.UserName ?? "",
+            user.PhoneNumber,
+            user.IsActive,
+            user.MustChangePassword,
+            user.TemporaryPasswordExpiresAt,
+            user.CreatedAt,
+            roles.Where(role => AppRoles.All.Contains(role)).OrderBy(FormatRole).ToList());
+    }
+
+    private static bool HasActiveTemporaryPassword(ApplicationUser user) =>
+        user.MustChangePassword && user.TemporaryPasswordExpiresAt > DateTimeOffset.UtcNow;
+
+    private static bool HasActiveTemporaryPassword(EmployeeListItem employee) =>
+        employee.MustChangePassword && employee.TemporaryPasswordExpiresAt > DateTimeOffset.UtcNow;
+
+    private string? GetVisibleTemporaryPassword(string employeeId, DateTimeOffset? expiresAt)
+    {
+        if (expiresAt is null || expiresAt.Value <= DateTimeOffset.UtcNow)
+        {
+            visibleTemporaryPasswords.Remove(employeeId);
+            return null;
+        }
+
+        return visibleTemporaryPasswords.TryGetValue(employeeId, out var password) ? password : null;
+    }
+
+    private static string GenerateTemporaryPassword()
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string lower = "abcdefghijkmnopqrstuvwxyz";
+        const string digits = "23456789";
+        const string symbols = "!@#$%";
+        const string all = upper + lower + digits + symbols;
+
+        return string.Concat(
+            RandomChar(upper),
+            RandomChar(lower),
+            RandomChar(digits),
+            RandomChar(symbols),
+            RandomString(all, 8));
+    }
+
+    private static char RandomChar(string values) => values[RandomNumberGenerator.GetInt32(values.Length)];
+
+    private static string RandomString(string values, int length)
+    {
+        return string.Concat(Enumerable.Range(0, length).Select(_ => RandomChar(values)));
+    }
+
+    private static string FormatPhoneInput(string? phoneNumber)
+    {
+        var digits = OnlyDigits(phoneNumber);
+        if (digits.Length > 11)
+        {
+            digits = digits[..11];
+        }
+
+        if (digits.Length <= 2)
+        {
+            return digits;
+        }
+
+        if (digits.Length <= 6)
+        {
+            return $"({digits[..2]}) {digits[2..]}";
+        }
+
+        if (digits.Length <= 10)
+        {
+            return $"({digits[..2]}) {digits[2..6]}-{digits[6..]}";
+        }
+
+        return $"({digits[..2]}) {digits[2..7]}-{digits[7..]}";
+    }
+
+    private static string OnlyDigits(string? value) => new((value ?? "").Where(char.IsDigit).ToArray());
+
+    private static string? TrimToNull(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private static string CompactText(string? value)
+    {
+        var parts = (value ?? "").Trim().Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts);
+    }
+
+    private static bool ContainsText(string? value, string search) =>
+        value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string FirstFilled(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "-";
+    }
+
+    private static string FormatRoles(IReadOnlyList<string> roleNames)
+    {
+        return roleNames.Count == 0 ? "-" : string.Join(", ", roleNames.Select(FormatRole));
+    }
+
+    private static string FormatRole(string role) => role switch
+    {
+        AppRoles.Administrador => "Administrador",
+        AppRoles.Gerente => "Gerente",
+        AppRoles.Vendedor => "Vendedor",
+        _ => role
+    };
+
+    private static string FormatTemporaryPasswordStatus(EmployeeListItem employee)
+    {
+        if (!employee.MustChangePassword)
+        {
+            return "Sem pendencia";
+        }
+
+        if (employee.TemporaryPasswordExpiresAt is null)
+        {
+            return "Troca obrigatoria";
+        }
+
+        if (employee.TemporaryPasswordExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            return "Expirada";
+        }
+
+        return $"Ativa ate {employee.TemporaryPasswordExpiresAt.Value.ToLocalTime():dd/MM HH:mm}";
+    }
+
+    private static string FormatTemporaryPasswordTimeRemaining(DateTimeOffset? expiresAt)
+    {
+        if (expiresAt is null)
+        {
+            return "-";
+        }
+
+        var remaining = expiresAt.Value - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "Expirada";
+        }
+
+        return remaining.TotalHours >= 1
+            ? $"{(int)remaining.TotalHours}h {remaining.Minutes}min"
+            : $"{remaining.Minutes}min";
+    }
+
+    private static string GetTemporaryPasswordCssClass(EmployeeListItem employee)
+    {
+        return employee.MustChangePassword && employee.TemporaryPasswordExpiresAt > DateTimeOffset.UtcNow
+            ? "status-pill-active"
+            : "status-pill-inactive";
+    }
+
+    private sealed class EmployeeInput
+    {
+        [Required(ErrorMessage = "Informe o nome.")]
+        [MaxLength(120, ErrorMessage = "Nome muito longo.")]
+        public string DisplayName { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe o email.")]
+        [EmailAddress(ErrorMessage = "Informe um email valido.")]
+        [MaxLength(256, ErrorMessage = "Email muito longo.")]
+        public string Email { get; set; } = "";
+
+        [MaxLength(15, ErrorMessage = "Telefone muito longo.")]
+        public string? PhoneNumber { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        [MaxLength(100, ErrorMessage = "Senha provisoria muito longa.")]
+        public string TemporaryPassword { get; set; } = "";
+
+        public HashSet<string> RoleNames { get; } = [];
+    }
+
+    private sealed class EmployeeAdvancedSearch
+    {
+        public string Status { get; set; } = "";
+
+        public string TemporaryPasswordStatus { get; set; } = "";
+
+        public HashSet<string> RoleNames { get; } = [];
+
+        public int ActiveFilterCount
+        {
+            get
+            {
+                var count = 0;
+                count += string.IsNullOrWhiteSpace(Status) ? 0 : 1;
+                count += string.IsNullOrWhiteSpace(TemporaryPasswordStatus) ? 0 : 1;
+                count += RoleNames.Count == 0 ? 0 : 1;
+                return count;
+            }
+        }
+
+        public EmployeeAdvancedSearch Clone()
+        {
+            var clone = new EmployeeAdvancedSearch
+            {
+                Status = Status,
+                TemporaryPasswordStatus = TemporaryPasswordStatus
+            };
+
+            foreach (var role in RoleNames)
+            {
+                clone.RoleNames.Add(role);
+            }
+
+            return clone;
+        }
+    }
+
+    private sealed record EmployeeListItem(
+        string Id,
+        string DisplayName,
+        string Email,
+        string? PhoneNumber,
+        bool IsActive,
+        bool MustChangePassword,
+        DateTimeOffset? TemporaryPasswordExpiresAt,
+        DateTimeOffset CreatedAt,
+        IReadOnlyList<string> RoleNames);
+}

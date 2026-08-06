@@ -10,6 +10,10 @@ public class ApplicationUser : IdentityUser
 
     public bool IsActive { get; set; } = true;
 
+    public bool MustChangePassword { get; set; }
+
+    public DateTimeOffset? TemporaryPasswordExpiresAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 

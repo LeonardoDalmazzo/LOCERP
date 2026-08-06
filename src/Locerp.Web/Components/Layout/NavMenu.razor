@@ -24,6 +24,16 @@
             </NavLink>
         </div>
 
+        <AuthorizeView Roles="@AppRoles.Administrador">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="funcionarios">
+                        <i class="fa-solid fa-user-tie" aria-hidden="true"></i> Funcionario
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="equipamentos">
                 <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> Equipamentos

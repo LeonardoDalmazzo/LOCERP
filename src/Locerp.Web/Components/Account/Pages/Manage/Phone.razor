@@ -1,0 +1,127 @@
+@page "/Account/Manage/Phone"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Locerp.Web.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Telefone</PageTitle>
+
+<h3>Telefone</h3>
+<StatusMessage />
+
+<div class="row">
+    <div class="col-xl-6">
+        <EditForm Model="Input" FormName="phone" OnValidSubmit="OnValidSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <div class="form-floating mb-3">
+                <label for="Input.PhoneNumber" class="form-label">Telefone de contato</label>
+                <InputText @bind-Value="Input.PhoneNumber"
+                           id="Input.PhoneNumber"
+                           class="form-control"
+                           maxlength="15"
+                           inputmode="numeric"
+                           autocomplete="tel"
+                           placeholder="(00) 00000-0000"
+                           oninput="let v=this.value.replace(/\D/g,'').slice(0,11);this.value=v.length>10?v.replace(/^(\d{2})(\d{5})(\d{0,4}).*/,'($1) $2-$3'):v.length>6?v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/,'($1) $2-$3'):v.length>2?v.replace(/^(\d{2})(\d*)/,'($1) $2'):v" />
+                <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
+            </div>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">Salvar telefone</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private ApplicationUser? user;
+    private string? phoneNumber;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        phoneNumber = FormatPhoneInput(await UserManager.GetPhoneNumberAsync(user));
+        Input.PhoneNumber ??= phoneNumber;
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        var formattedPhoneNumber = TrimToNull(FormatPhoneInput(Input.PhoneNumber));
+
+        if (formattedPhoneNumber != phoneNumber)
+        {
+            var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, formattedPhoneNumber);
+            if (!setPhoneResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Erro: nao foi possivel atualizar o telefone.", HttpContext);
+                return;
+            }
+        }
+
+        await SignInManager.RefreshSignInAsync(user);
+        RedirectManager.RedirectToCurrentPageWithStatus("Telefone atualizado.", HttpContext);
+    }
+
+    private static string FormatPhoneInput(string? phoneNumber)
+    {
+        var digits = OnlyDigits(phoneNumber);
+        if (digits.Length > 11)
+        {
+            digits = digits[..11];
+        }
+
+        if (digits.Length <= 2)
+        {
+            return digits;
+        }
+
+        if (digits.Length <= 6)
+        {
+            return $"({digits[..2]}) {digits[2..]}";
+        }
+
+        if (digits.Length <= 10)
+        {
+            return $"({digits[..2]}) {digits[2..6]}-{digits[6..]}";
+        }
+
+        return $"({digits[..2]}) {digits[2..7]}-{digits[7..]}";
+    }
+
+    private static string OnlyDigits(string? value) => new((value ?? "").Where(char.IsDigit).ToArray());
+
+    private static string? TrimToNull(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private sealed class InputModel
+    {
+        [MaxLength(15, ErrorMessage = "Telefone muito longo.")]
+        [Display(Name = "Telefone de contato")]
+        public string? PhoneNumber { get; set; }
+    }
+}
