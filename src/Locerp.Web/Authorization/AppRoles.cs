@@ -4,15 +4,15 @@ public static class AppRoles
 {
     public const string Administrador = "Administrador";
     public const string Gerente = "Gerente";
-    public const string Operador = "Operador";
+    public const string Vendedor = "Vendedor";
 
     public const string Gestao = Administrador + "," + Gerente;
-    public const string Operacao = Administrador + "," + Gerente + "," + Operador;
+    public const string Operacao = Administrador + "," + Gerente + "," + Vendedor;
 
     public static readonly string[] All =
     [
         Administrador,
         Gerente,
-        Operador
+        Vendedor
     ];
 }

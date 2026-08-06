@@ -6,6 +6,7 @@ using Locerp.Web.Authorization;
 using Locerp.Web.Components;
 using Locerp.Web.Components.Account;
 using Locerp.Web.Data;
+using Locerp.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,7 +33,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AppPolicies.CanManageUsers, policy => policy.RequireRole(AppRoles.Administrador));
-    options.AddPolicy(AppPolicies.CanManageOperations, policy => policy.RequireRole(AppRoles.Administrador, AppRoles.Gerente, AppRoles.Operador));
+    options.AddPolicy(AppPolicies.CanManageOperations, policy => policy.RequireRole(AppRoles.Administrador, AppRoles.Gerente, AppRoles.Vendedor));
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -40,8 +41,15 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString), ServiceLifetime.Scoped);
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddHealthChecks();
+builder.Services.AddHttpClient<IViaCepAddressLookup, ViaCepAddressLookup>(client =>
+{
+    client.BaseAddress = new Uri("https://viacep.com.br/");
+    client.Timeout = TimeSpan.FromSeconds(4);
+});
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {

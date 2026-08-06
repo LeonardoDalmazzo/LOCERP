@@ -102,6 +102,18 @@ button {
     color: var(--color-muted);
 }
 
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .row {
     display: grid;
     gap: var(--space-5);
@@ -159,6 +171,11 @@ button {
     color: var(--color-muted);
 }
 
+textarea.form-control {
+    min-height: 7.5rem;
+    resize: vertical;
+}
+
 .form-control::placeholder {
     color: var(--color-muted);
     opacity: 0.72;
@@ -167,6 +184,83 @@ button {
 .form-floating {
     display: grid;
     gap: var(--space-2);
+}
+
+.form-control option.select-add-option {
+    background-color: var(--color-primary);
+    color: var(--color-primary-contrast);
+    font-weight: 800;
+}
+
+.form-control option.select-add-option:checked {
+    background: linear-gradient(0deg, var(--color-primary), var(--color-primary));
+    color: var(--color-primary-contrast);
+}
+
+.field-status {
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.field-status-success {
+    color: var(--color-primary-dark);
+}
+
+.field-status-error {
+    color: var(--color-danger);
+}
+
+.lightbox-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+    background: rgba(16, 24, 40, 0.48);
+}
+
+.lightbox-dialog {
+    display: grid;
+    gap: var(--space-4);
+    width: min(100%, 460px);
+    max-height: calc(100vh - (var(--space-5) * 2));
+    overflow: auto;
+    padding: var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-panel);
+    box-shadow: var(--shadow-sm);
+}
+
+.lightbox-dialog-wide {
+    width: min(100%, 1040px);
+}
+
+.lightbox-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.lightbox-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.25;
+}
+
+.lightbox-close {
+    min-width: 2.4rem;
+    min-height: 2.4rem;
+    color: var(--color-muted);
+}
+
+.lightbox-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-3);
 }
 
 .form-check-input {
@@ -228,6 +322,44 @@ h1:focus {
 .page-header p {
     margin: var(--space-2) 0 0;
     color: var(--color-muted);
+}
+
+.customer-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.customer-search {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+}
+
+.search-button {
+    width: 3rem;
+    padding-inline: 0;
+}
+
+.advanced-search-button {
+    justify-self: start;
+    border-color: var(--color-border);
+    background: var(--color-panel);
+    color: var(--color-ink);
+}
+
+.filter-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.35rem;
+    min-height: 1.35rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+    font-size: 0.78rem;
+    font-weight: 800;
 }
 
 .eyebrow {
@@ -324,6 +456,232 @@ h1:focus {
     border-radius: var(--radius-md);
     color: var(--color-muted);
     text-align: center;
+}
+
+.alert {
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+}
+
+.alert-success {
+    border-color: rgba(var(--color-primary-rgb), 0.32);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+}
+
+.alert-danger {
+    border-color: rgba(var(--color-primary-rgb), 0.38);
+    background: #fff5f5;
+    color: var(--color-danger);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+.form-section {
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.section-title h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.section-title span,
+.inline-list-item small,
+.data-table small,
+.data-table td span {
+    color: var(--color-muted);
+}
+
+.text-end {
+    text-align: right;
+}
+
+.btn-compact {
+    min-height: 2rem;
+    padding: 0.42rem 0.7rem;
+    font-size: 0.88rem;
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.inline-list {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.inline-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.inline-list-item div,
+.data-table td:first-child,
+.data-table td:nth-child(2) {
+    display: grid;
+    gap: var(--space-1);
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: collapse;
+}
+
+.data-table-nowrap {
+    min-width: 1320px;
+}
+
+.data-table-nowrap th,
+.data-table-nowrap td {
+    white-space: nowrap;
+}
+
+.data-table-nowrap td:first-child,
+.data-table-nowrap td:nth-child(2) {
+    display: table-cell;
+}
+
+.data-table th,
+.data-table td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.data-table th {
+    color: var(--color-muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.status-pill-active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+}
+
+.status-pill-inactive {
+    background: var(--color-panel-muted);
+    color: var(--color-muted);
+}
+
+.action-buttons {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.action-buttons-confirm {
+    gap: var(--space-2);
+}
+
+.action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    color: var(--color-muted);
+}
+
+.action-icon:hover,
+.action-icon:focus {
+    color: var(--color-primary);
+}
+
+.action-icon-danger {
+    color: var(--color-danger);
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-panel-muted);
+}
+
+.checkbox-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-ink);
+    font-weight: 700;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+.details-grid > div,
+.details-block {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.details-grid span,
+.details-block > span {
+    color: var(--color-muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.details-grid strong,
+.details-block p {
+    margin: 0;
 }
 
 .auth-form {
@@ -442,12 +800,33 @@ h1:focus {
         align-items: end;
     }
 
+    .customer-toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .advanced-search-button {
+        justify-self: end;
+    }
+
     .metric-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .module-grid,
     .status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .form-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .span-2 {
+        grid-column: span 2;
+    }
+
+    .checkbox-grid,
+    .details-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }

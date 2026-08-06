@@ -90,7 +90,7 @@
 
         Logger.LogInformation("User created a new account with password.");
 
-        await UserManager.AddToRoleAsync(user, AppRoles.Operador);
+        await UserManager.AddToRoleAsync(user, AppRoles.Vendedor);
         RedirectManager.RedirectTo("Account/Login");
     }
 

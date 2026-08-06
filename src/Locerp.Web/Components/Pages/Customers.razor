@@ -1,6 +1,16 @@
 @page "/clientes"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Locerp.Web.Data
+@using Locerp.Web.Services
 @attribute [Authorize(Roles = AppRoles.Operacao)]
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IViaCepAddressLookup ViaCepLookup
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Clientes | LOCERP</PageTitle>
 
@@ -11,19 +21,1757 @@
             <h1>Clientes</h1>
             <p>Empresas e responsaveis atendidos pela operacao.</p>
         </div>
-        <button class="btn btn-primary" type="button">
+        <button class="btn btn-primary" type="button" @onclick="OpenNewCustomerForm">
             <i class="fa-solid fa-plus" aria-hidden="true"></i>
             Novo cliente
         </button>
     </header>
 
+    @if (!isCustomerFormOpen && !string.IsNullOrWhiteSpace(formMessage))
+    {
+        <div class="alert @(formMessageIsError ? "alert-danger" : "alert-success")" role="status">
+            @formMessage
+        </div>
+    }
+
+    <section class="customer-toolbar" aria-label="Busca de clientes">
+        <div class="customer-search">
+            <label class="visually-hidden" for="customerSearch">Buscar por nome</label>
+            <input @bind="customerSearchText"
+                   @bind:event="oninput"
+                   @onkeydown="HandleCustomerSearchKeyDown"
+                   id="customerSearch"
+                   class="form-control"
+                   placeholder="Buscar por nome" />
+            <button class="btn btn-primary search-button" type="button" @onclick="ApplyCustomerSearchAsync" aria-label="Pesquisar clientes">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            </button>
+        </div>
+        <button class="btn advanced-search-button" type="button" @onclick="OpenAdvancedSearch">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+            Busca avancada
+            @if (ActiveAdvancedFilterCount > 0)
+            {
+                <span class="filter-count">@ActiveAdvancedFilterCount</span>
+            }
+        </button>
+    </section>
+
+    @if (isCustomerFormOpen)
+    {
+        <div class="lightbox-backdrop" role="presentation">
+            <section class="panel lightbox-dialog lightbox-dialog-wide" id="novo-cliente" role="dialog" aria-modal="true" aria-labelledby="customerFormTitle">
+        <div class="panel-header lightbox-header">
+            <h2 id="customerFormTitle">@(editingCustomerId is null ? "Novo cliente" : "Editar cliente")</h2>
+            <button class="btn btn-link lightbox-close" type="button" @onclick="ResetForm" aria-label="Fechar">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(formMessage))
+        {
+            <div class="alert @(formMessageIsError ? "alert-danger" : "alert-success")" role="status">
+                @formMessage
+            </div>
+        }
+
+        @if (sellers.Count == 0)
+        {
+            <div class="alert alert-danger" role="alert">
+                Cadastre ao menos um usuario com a role Vendedor para vincular como responsavel.
+            </div>
+        }
+
+        <EditForm id="customer-form" Model="customerInput" FormName="customer-registration" OnValidSubmit="SaveCustomerAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+
+            <div class="form-grid">
+                <div class="form-floating">
+                    <label for="customerType">Tipo de cliente</label>
+                    <InputSelect @bind-Value="customerInput.Type" id="customerType" class="form-control">
+                        @foreach (var type in Enum.GetValues<CustomerType>())
+                        {
+                            <option value="@type">@FormatCustomerType(type)</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-floating">
+                    <label for="customerStatus">Status</label>
+                    <InputSelect @bind-Value="customerInput.Status" id="customerStatus" class="form-control">
+                        @foreach (var status in Enum.GetValues<CustomerStatus>())
+                        {
+                            <option value="@status">@FormatCustomerStatus(status)</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="form-floating">
+                    <label for="documentNumber">@DocumentLabel</label>
+                    <InputText @bind-Value="customerInput.DocumentNumber" id="documentNumber" class="form-control" placeholder="@DocumentPlaceholder" />
+                    <ValidationMessage For="() => customerInput.DocumentNumber" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="customerName">Nome</label>
+                    <InputText @bind-Value="customerInput.Name" id="customerName" class="form-control" autocomplete="name" placeholder="Nome do cliente" />
+                    <ValidationMessage For="() => customerInput.Name" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="customerEmail">E-mail</label>
+                    <InputText @bind-Value="customerInput.Email" id="customerEmail" class="form-control" autocomplete="email" placeholder="cliente@email.com" />
+                    <ValidationMessage For="() => customerInput.Email" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="businessPhone">Telefone comercial</label>
+                    <InputText @bind-Value="customerInput.BusinessPhone" id="businessPhone" class="form-control" autocomplete="tel" placeholder="(00) 0000-0000" />
+                    <ValidationMessage For="() => customerInput.BusinessPhone" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="mobilePhone">Telefone celular</label>
+                    <InputText @bind-Value="customerInput.MobilePhone" id="mobilePhone" class="form-control" autocomplete="tel" placeholder="(00) 00000-0000" />
+                    <ValidationMessage For="() => customerInput.MobilePhone" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="website">Site</label>
+                    <InputText @bind-Value="customerInput.Website" id="website" class="form-control" placeholder="www.cliente.com.br" />
+                    <ValidationMessage For="() => customerInput.Website" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="sellerId">Vendedor responsavel</label>
+                    <InputSelect @bind-Value="customerInput.SellerId" id="sellerId" class="form-control" disabled="@(sellers.Count == 0)">
+                        <option value="">Selecione um vendedor</option>
+                        @foreach (var seller in sellers)
+                        {
+                            <option value="@seller.Id">@seller.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => customerInput.SellerId" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="companyName">Empresa/construtora</label>
+                    <InputText @bind-Value="customerInput.CompanyName" id="companyName" class="form-control" placeholder="Empresa em que trabalha" />
+                    <ValidationMessage For="() => customerInput.CompanyName" class="text-danger" />
+                </div>
+
+                <div class="form-floating">
+                    <label for="customerOrigin">Origem do cliente</label>
+                    <InputSelect TValue="string"
+                                 Value="@customerInput.Origin"
+                                 ValueChanged="@((string selectedValue) => OnCustomerOriginChangedAsync(selectedValue))"
+                                 ValueExpression="@(() => customerInput.Origin)"
+                                 id="customerOrigin"
+                                 class="form-control">
+                        @foreach (var origin in customerOriginOptions)
+                        {
+                            <option value="@origin.Value">@origin.Label</option>
+                        }
+                        <option class="select-add-option" value="@AddCustomerOriginValue">Adicionar outra opcao</option>
+                    </InputSelect>
+                    @if (!isAddingCustomerOrigin && !string.IsNullOrWhiteSpace(customerOriginOptionMessage))
+                    {
+                        <small class="field-status @(customerOriginOptionMessageIsError ? "field-status-error" : "field-status-success")" role="status">
+                            @customerOriginOptionMessage
+                        </small>
+                    }
+                </div>
+
+                <div class="form-floating span-2">
+                    <label for="notes">Observacoes</label>
+                    <InputTextArea @bind-Value="customerInput.Notes" id="notes" class="form-control" placeholder="Historico, preferencias ou informacoes importantes" />
+                    <ValidationMessage For="() => customerInput.Notes" class="text-danger" />
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="section-title">
+                    <div>
+                        <h3>Enderecos do cliente</h3>
+                        <span>Adicione um ou mais enderecos para reutilizar em locacoes e contratos.</span>
+                    </div>
+                    <span class="panel-muted">@customerInput.Addresses.Count endereco(s)</span>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(addressMessage))
+                {
+                    <div class="alert @(addressMessageIsError ? "alert-danger" : "alert-success")" role="status">
+                        @addressMessage
+                    </div>
+                }
+
+                <div class="form-grid">
+                    <div class="form-floating">
+                        <label for="addressType">Tipo de endereco</label>
+                        <InputSelect TValue="string"
+                                     Value="@addressInput.Type"
+                                     ValueChanged="@((string selectedValue) => OnAddressTypeChangedAsync(selectedValue))"
+                                     ValueExpression="@(() => addressInput.Type)"
+                                     id="addressType"
+                                     class="form-control">
+                            @foreach (var type in addressTypeOptions)
+                            {
+                                <option value="@type.Value">@type.Label</option>
+                            }
+                            <option class="select-add-option" value="@AddAddressTypeValue">Adicionar outra opcao</option>
+                        </InputSelect>
+                        @if (!isAddingAddressType && !string.IsNullOrWhiteSpace(addressTypeOptionMessage))
+                        {
+                            <small class="field-status @(addressTypeOptionMessageIsError ? "field-status-error" : "field-status-success")" role="status">
+                                @addressTypeOptionMessage
+                            </small>
+                        }
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="postalCode">CEP</label>
+                        <input value="@addressInput.PostalCode"
+                               @oninput="MaskPostalCodeInput"
+                               id="postalCode"
+                               class="form-control"
+                               placeholder="00000-000"
+                               maxlength="9"
+                               inputmode="numeric"
+                               autocomplete="postal-code"
+                               @onblur="LookupAddressByPostalCodeAsync" />
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="street">Logradouro</label>
+                        <InputText @bind-Value="addressInput.Street" id="street" class="form-control" autocomplete="address-line1" placeholder="Rua, avenida, travessa" />
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="number">Numero</label>
+                        <InputText @bind-Value="addressInput.Number" id="number" class="form-control" autocomplete="address-line2" placeholder="Numero" />
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="neighborhood">Bairro</label>
+                        <InputText @bind-Value="addressInput.Neighborhood" id="neighborhood" class="form-control" placeholder="Bairro" />
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="city">Cidade</label>
+                        <InputText @bind-Value="addressInput.City" id="city" class="form-control" autocomplete="address-level2" placeholder="Cidade" />
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="state">UF</label>
+                        <InputText @bind-Value="addressInput.State" id="state" class="form-control" maxlength="2" autocomplete="address-level1" placeholder="UF" />
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="complement">Complemento</label>
+                        <InputText @bind-Value="addressInput.Complement" id="complement" class="form-control" placeholder="Apto, bloco, referencia" />
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn" type="button" @onclick="LookupAddressByPostalCodeAsync" disabled="@isLookingUpAddress">
+                        <i class="fa-solid fa-magnifying-glass-location" aria-hidden="true"></i>
+                        @(isLookingUpAddress ? "Buscando CEP..." : "Buscar CEP")
+                    </button>
+                    <button class="btn btn-primary" type="button" @onclick="AddAddress">
+                        <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                        Adicionar endereco
+                    </button>
+                </div>
+
+                @if (customerInput.Addresses.Count > 0)
+                {
+                    <div class="inline-list" aria-label="Enderecos adicionados">
+                        @foreach (var indexedAddress in customerInput.Addresses.Select((address, index) => new { address, index }))
+                        {
+                            <div class="inline-list-item">
+                                <div>
+                                    <strong>@FormatAddressType(indexedAddress.address.Type)</strong>
+                                    <span>@FormatAddressLine(indexedAddress.address)</span>
+                                    <small>@FormatPostalCode(indexedAddress.address.PostalCode)</small>
+                                </div>
+                                <button class="btn btn-link" type="button" @onclick="() => RemoveAddress(indexedAddress.index)">
+                                    Remover
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn" @onclick="ResetForm">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary" disabled="@(!CanSave)">
+                    <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                    @(isSaving ? "Salvando..." : editingCustomerId is null ? "Salvar cliente" : "Salvar alteracoes")
+                </button>
+            </div>
+        </EditForm>
+
+        @if (isAddingCustomerOrigin)
+        {
+            <div class="lightbox-backdrop" role="presentation">
+                <div class="lightbox-dialog" role="dialog" aria-modal="true" aria-labelledby="customerOriginDialogTitle">
+                    <div class="lightbox-header">
+                        <h3 id="customerOriginDialogTitle">Adicionar origem do cliente</h3>
+                        <button class="btn btn-link lightbox-close" type="button" @onclick="CancelCustomerOriginOption" aria-label="Fechar">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="form-floating">
+                        <label for="newCustomerOriginName">Nova origem do cliente</label>
+                        <input @bind="newCustomerOriginName" @bind:event="oninput" id="newCustomerOriginName" class="form-control" maxlength="@DropdownOptionNameMaxLength" placeholder="Nova origem do cliente" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(customerOriginOptionMessage))
+                    {
+                        <small class="field-status @(customerOriginOptionMessageIsError ? "field-status-error" : "field-status-success")" role="status">
+                            @customerOriginOptionMessage
+                        </small>
+                    }
+                    <div class="lightbox-actions">
+                        <button class="btn" type="button" @onclick="CancelCustomerOriginOption">
+                            Cancelar
+                        </button>
+                        <button class="btn btn-primary" type="button" @onclick="SaveCustomerOriginOptionAsync" disabled="@isSavingCustomerOriginOption">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                            @(isSavingCustomerOriginOption ? "Adicionando..." : "Adicionar")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (isAddingAddressType)
+        {
+            <div class="lightbox-backdrop" role="presentation">
+                <div class="lightbox-dialog" role="dialog" aria-modal="true" aria-labelledby="addressTypeDialogTitle">
+                    <div class="lightbox-header">
+                        <h3 id="addressTypeDialogTitle">Adicionar tipo de endereco</h3>
+                        <button class="btn btn-link lightbox-close" type="button" @onclick="CancelAddressTypeOption" aria-label="Fechar">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="form-floating">
+                        <label for="newAddressTypeName">Novo tipo de endereco</label>
+                        <input @bind="newAddressTypeName" @bind:event="oninput" id="newAddressTypeName" class="form-control" maxlength="@DropdownOptionNameMaxLength" placeholder="Novo tipo de endereco" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(addressTypeOptionMessage))
+                    {
+                        <small class="field-status @(addressTypeOptionMessageIsError ? "field-status-error" : "field-status-success")" role="status">
+                            @addressTypeOptionMessage
+                        </small>
+                    }
+                    <div class="lightbox-actions">
+                        <button class="btn" type="button" @onclick="CancelAddressTypeOption">
+                            Cancelar
+                        </button>
+                        <button class="btn btn-primary" type="button" @onclick="SaveAddressTypeOptionAsync" disabled="@isSavingAddressTypeOption">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                            @(isSavingAddressTypeOption ? "Adicionando..." : "Adicionar")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+            </section>
+        </div>
+    }
+
     <section class="panel">
         <div class="panel-header">
             <h2>Lista de clientes</h2>
-            <span class="panel-muted">0 registros</span>
+            <span class="panel-muted">@customers.Count registro(s)</span>
         </div>
-        <div class="empty-state">
-            <span>Nenhum cliente cadastrado.</span>
-        </div>
+
+        @if (isLoading)
+        {
+            <div class="empty-state">
+                <span>Carregando clientes...</span>
+            </div>
+        }
+        else if (customers.Count == 0)
+        {
+            <div class="empty-state">
+                <span>Nenhum cliente encontrado.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Documento</th>
+                            <th>Contato</th>
+                            <th>Origem</th>
+                            <th>Vendedor</th>
+                            <th>Enderecos</th>
+                            <th>Status</th>
+                            <th class="text-end">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var customer in customers)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@customer.Name</strong>
+                                    <span>@FormatCustomerType(customer.Type)</span>
+                                    @if (!string.IsNullOrWhiteSpace(customer.CompanyName))
+                                    {
+                                        <small>@customer.CompanyName</small>
+                                    }
+                                </td>
+                                <td>@FormatDocument(customer.DocumentNumber, customer.Type)</td>
+                                <td>
+                                    <span>@FirstFilled(customer.MobilePhone, customer.BusinessPhone, customer.Email)</span>
+                                    @if (!string.IsNullOrWhiteSpace(customer.Website))
+                                    {
+                                        <small>@customer.Website</small>
+                                    }
+                                </td>
+                                <td>@FormatCustomerOrigin(customer.Origin)</td>
+                                <td>@customer.SellerName</td>
+                                <td>@customer.AddressCount</td>
+                                <td>
+                                    <span class="status-pill @(customer.Status == CustomerStatus.Active ? "status-pill-active" : "status-pill-inactive")">
+                                        @FormatCustomerStatus(customer.Status)
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    @if (pendingDeleteCustomerId == customer.Id)
+                                    {
+                                        <div class="action-buttons action-buttons-confirm">
+                                            <button class="btn btn-danger btn-compact" type="button" @onclick="() => DeleteCustomerAsync(customer.Id)">
+                                                Confirmar
+                                            </button>
+                                            <button class="btn btn-compact" type="button" @onclick="CancelDeleteCustomer">
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="action-buttons">
+                                            <button class="btn btn-link action-icon" type="button" @onclick="() => ViewCustomerAsync(customer.Id)" aria-label="Visualizar cliente">
+                                                <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                                            </button>
+                                            <button class="btn btn-link action-icon" type="button" @onclick="() => EditCustomerAsync(customer.Id)" aria-label="Editar cliente">
+                                                <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                                            </button>
+                                            <button class="btn btn-link action-icon action-icon-danger" type="button" @onclick="() => RequestDeleteCustomer(customer.Id)" aria-label="Deletar cliente">
+                                                <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     </section>
+
+    @if (isAdvancedSearchOpen)
+    {
+        <div class="lightbox-backdrop" role="presentation">
+            <section class="panel lightbox-dialog lightbox-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="advancedSearchTitle">
+                <div class="lightbox-header">
+                    <h3 id="advancedSearchTitle">Busca avancada</h3>
+                    <button class="btn btn-link lightbox-close" type="button" @onclick="CloseAdvancedSearch" aria-label="Fechar">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-floating">
+                        <label for="advancedCustomerType">Tipo de cliente</label>
+                        <InputSelect @bind-Value="advancedSearch.CustomerType" id="advancedCustomerType" class="form-control">
+                            <option value="">Todos</option>
+                            @foreach (var type in Enum.GetValues<CustomerType>())
+                            {
+                                <option value="@type.ToString()">@FormatCustomerType(type)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="advancedCustomerStatus">Status</label>
+                        <InputSelect @bind-Value="advancedSearch.Status" id="advancedCustomerStatus" class="form-control">
+                            <option value="">Todos</option>
+                            @foreach (var status in Enum.GetValues<CustomerStatus>())
+                            {
+                                <option value="@status.ToString()">@FormatCustomerStatus(status)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-floating span-2">
+                        <label>Origem do cliente</label>
+                        <div class="checkbox-grid">
+                            @foreach (var origin in customerOriginOptions)
+                            {
+                                <label class="checkbox-option">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           checked="@advancedSearch.OriginValues.Contains(origin.Value)"
+                                           @onchange="args => ToggleAdvancedOrigin(origin.Value, args)" />
+                                    <span>@origin.Label</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="form-floating">
+                        <label for="advancedAddressType">Tipo de endereco</label>
+                        <InputSelect @bind-Value="advancedSearch.AddressType" id="advancedAddressType" class="form-control">
+                            <option value="">Todos</option>
+                            @foreach (var type in addressTypeOptions)
+                            {
+                                <option value="@type.Value">@type.Label</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-floating span-2">
+                        <label>Vendedores</label>
+                        <div class="checkbox-grid">
+                            @foreach (var seller in sellers)
+                            {
+                                <label class="checkbox-option">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           checked="@advancedSearch.SellerIds.Contains(seller.Id)"
+                                           @onchange="args => ToggleAdvancedSeller(seller.Id, args)" />
+                                    <span>@seller.Name</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lightbox-actions">
+                    <button class="btn" type="button" @onclick="ClearAdvancedSearchAsync">
+                        Limpar filtros
+                    </button>
+                    <button class="btn" type="button" @onclick="CloseAdvancedSearch">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-primary" type="button" @onclick="ApplyAdvancedSearchAsync">
+                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        Pesquisar
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (viewingCustomer is not null)
+    {
+        <div class="lightbox-backdrop" role="presentation">
+            <section class="panel lightbox-dialog lightbox-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="customerDetailsTitle">
+                <div class="lightbox-header">
+                    <div>
+                        <span class="eyebrow">Cliente</span>
+                        <h3 id="customerDetailsTitle">@viewingCustomer.Name</h3>
+                    </div>
+                    <button class="btn btn-link lightbox-close" type="button" @onclick="CloseCustomerDetails" aria-label="Fechar">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <div class="details-grid">
+                    <div>
+                        <span>Tipo</span>
+                        <strong>@FormatCustomerType(viewingCustomer.Type)</strong>
+                    </div>
+                    <div>
+                        <span>Status</span>
+                        <strong>@FormatCustomerStatus(viewingCustomer.Status)</strong>
+                    </div>
+                    <div>
+                        <span>Documento</span>
+                        <strong>@FormatDocument(viewingCustomer.DocumentNumber, viewingCustomer.Type)</strong>
+                    </div>
+                    <div>
+                        <span>Origem</span>
+                        <strong>@FormatCustomerOrigin(viewingCustomer.Origin)</strong>
+                    </div>
+                    <div>
+                        <span>Vendedor</span>
+                        <strong>@viewingCustomer.SellerName</strong>
+                    </div>
+                    <div>
+                        <span>Empresa/construtora</span>
+                        <strong>@FirstFilled(viewingCustomer.CompanyName)</strong>
+                    </div>
+                    <div>
+                        <span>E-mail</span>
+                        <strong>@FirstFilled(viewingCustomer.Email)</strong>
+                    </div>
+                    <div>
+                        <span>Telefone</span>
+                        <strong>@FirstFilled(viewingCustomer.MobilePhone, viewingCustomer.BusinessPhone)</strong>
+                    </div>
+                    <div>
+                        <span>Site</span>
+                        <strong>@FirstFilled(viewingCustomer.Website)</strong>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(viewingCustomer.Notes))
+                {
+                    <div class="details-block">
+                        <span>Observacoes</span>
+                        <p>@viewingCustomer.Notes</p>
+                    </div>
+                }
+
+                <div class="details-block">
+                    <span>Enderecos</span>
+                    <div class="inline-list">
+                        @foreach (var address in viewingCustomer.Addresses)
+                        {
+                            <div class="inline-list-item">
+                                <div>
+                                    <strong>@FormatAddressType(address.Type)</strong>
+                                    <span>@FormatAddressLine(address)</span>
+                                    <small>@FormatPostalCode(address.PostalCode)</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="lightbox-actions">
+                    <button class="btn" type="button" @onclick="CloseCustomerDetails">
+                        Fechar
+                    </button>
+                    <button class="btn btn-primary" type="button" @onclick="() => EditCustomerAsync(viewingCustomer.Id)">
+                        <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+                        Editar
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
 </section>
+
+@code {
+    private const string AddCustomerOriginValue = "__add_customer_origin__";
+    private const string AddAddressTypeValue = "__add_address_type__";
+    private const int DropdownOptionNameMaxLength = 80;
+
+    private readonly CustomerInput customerInput = new();
+    private AddressInput addressInput = new();
+    private List<SellerOption> sellers = [];
+    private List<CustomerListItem> customers = [];
+    private List<DropdownOption> customerOriginOptions = DefaultCustomerOriginOptions.ToList();
+    private List<DropdownOption> addressTypeOptions = DefaultAddressTypeOptions.ToList();
+    private CustomerAdvancedSearch advancedSearch = new();
+    private CustomerAdvancedSearch appliedAdvancedSearch = new();
+    private CustomerDetails? viewingCustomer;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isLookingUpAddress;
+    private bool isCustomerFormOpen;
+    private bool isAdvancedSearchOpen;
+    private bool isAddingCustomerOrigin;
+    private bool isAddingAddressType;
+    private bool isSavingCustomerOriginOption;
+    private bool isSavingAddressTypeOption;
+    private int? editingCustomerId;
+    private int? pendingDeleteCustomerId;
+    private string? formMessage;
+    private bool formMessageIsError;
+    private string? addressMessage;
+    private bool addressMessageIsError;
+    private string customerSearchText = "";
+    private string appliedCustomerSearch = "";
+    private string newCustomerOriginName = "";
+    private string newAddressTypeName = "";
+    private string? customerOriginOptionMessage;
+    private bool customerOriginOptionMessageIsError;
+    private string? addressTypeOptionMessage;
+    private bool addressTypeOptionMessageIsError;
+
+    private bool CanSave => !isSaving && sellers.Count > 0 && !isSavingCustomerOriginOption && !isSavingAddressTypeOption;
+
+    private int ActiveAdvancedFilterCount => appliedAdvancedSearch.ActiveFilterCount;
+
+    private string DocumentLabel => customerInput.Type == CustomerType.Individual ? "CPF" : "CNPJ";
+
+    private string DocumentPlaceholder => customerInput.Type == CustomerType.Individual ? "000.000.000-00" : "00.000.000/0000-00";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSellersAsync();
+        await LoadDropdownOptionsAsync();
+        await LoadCustomersAsync();
+    }
+
+    private async Task LoadSellersAsync()
+    {
+        var users = await UserManager.GetUsersInRoleAsync(AppRoles.Vendedor);
+        sellers = users
+            .Where(user => user.IsActive)
+            .Select(user => new SellerOption(user.Id, string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email ?? user.UserName ?? "Vendedor" : user.DisplayName))
+            .OrderBy(user => user.Name)
+            .ToList();
+    }
+
+    private async Task LoadDropdownOptionsAsync()
+    {
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var customOptions = await dbContext.CustomerDropdownOptions
+            .AsNoTracking()
+            .OrderBy(option => option.Name)
+            .Select(option => new CustomerDropdownOptionListItem(option.Kind, option.Name))
+            .ToListAsync();
+
+        customerOriginOptions = BuildDropdownOptions(
+            CustomerDropdownOptionKind.CustomerOrigin,
+            DefaultCustomerOriginOptions,
+            customOptions);
+
+        addressTypeOptions = BuildDropdownOptions(
+            CustomerDropdownOptionKind.AddressType,
+            DefaultAddressTypeOptions,
+            customOptions);
+    }
+
+    private async Task LoadCustomersAsync()
+    {
+        isLoading = true;
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var query = dbContext.Customers
+            .AsNoTracking();
+
+        var search = TrimToNull(appliedCustomerSearch);
+        if (search is not null)
+        {
+            query = query.Where(customer => EF.Functions.ILike(customer.Name, $"%{search}%"));
+        }
+
+        if (Enum.TryParse<CustomerType>(appliedAdvancedSearch.CustomerType, out var selectedType))
+        {
+            query = query.Where(customer => customer.Type == selectedType);
+        }
+
+        if (Enum.TryParse<CustomerStatus>(appliedAdvancedSearch.Status, out var selectedStatus))
+        {
+            query = query.Where(customer => customer.Status == selectedStatus);
+        }
+
+        var selectedOrigins = appliedAdvancedSearch.OriginValues.ToList();
+        if (selectedOrigins.Count > 0)
+        {
+            query = query.Where(customer => selectedOrigins.Contains(customer.Origin));
+        }
+
+        if (!string.IsNullOrWhiteSpace(appliedAdvancedSearch.AddressType))
+        {
+            query = query.Where(customer => customer.Addresses.Any(address => address.Type == appliedAdvancedSearch.AddressType));
+        }
+
+        var selectedSellerIds = appliedAdvancedSearch.SellerIds.ToList();
+        if (selectedSellerIds.Count > 0)
+        {
+            query = query.Where(customer => selectedSellerIds.Contains(customer.SellerId));
+        }
+
+        customers = await query
+            .OrderByDescending(customer => customer.CreatedAt)
+            .Select(customer => new CustomerListItem(
+                customer.Id,
+                customer.Type,
+                customer.Status,
+                customer.DocumentNumber,
+                customer.Name,
+                customer.Email,
+                customer.BusinessPhone,
+                customer.MobilePhone,
+                customer.Website,
+                customer.CompanyName,
+                customer.Origin,
+                customer.Seller.DisplayName,
+                customer.Addresses.Count))
+            .ToListAsync();
+
+        isLoading = false;
+    }
+
+    private void OpenNewCustomerForm()
+    {
+        ResetForm();
+        formMessage = null;
+        isCustomerFormOpen = true;
+    }
+
+    private async Task ApplyCustomerSearchAsync()
+    {
+        appliedCustomerSearch = CompactOptionName(customerSearchText);
+        pendingDeleteCustomerId = null;
+        await LoadCustomersAsync();
+    }
+
+    private async Task HandleCustomerSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await ApplyCustomerSearchAsync();
+        }
+    }
+
+    private void OpenAdvancedSearch()
+    {
+        advancedSearch = appliedAdvancedSearch.Clone();
+        isAdvancedSearchOpen = true;
+    }
+
+    private void CloseAdvancedSearch()
+    {
+        isAdvancedSearchOpen = false;
+    }
+
+    private async Task ApplyAdvancedSearchAsync()
+    {
+        appliedAdvancedSearch = advancedSearch.Clone();
+        pendingDeleteCustomerId = null;
+        isAdvancedSearchOpen = false;
+        await LoadCustomersAsync();
+    }
+
+    private async Task ClearAdvancedSearchAsync()
+    {
+        advancedSearch = new();
+        appliedAdvancedSearch = new();
+        pendingDeleteCustomerId = null;
+        isAdvancedSearchOpen = false;
+        await LoadCustomersAsync();
+    }
+
+    private void ToggleAdvancedSeller(string sellerId, ChangeEventArgs args)
+    {
+        if (args.Value is bool isChecked && isChecked)
+        {
+            advancedSearch.SellerIds.Add(sellerId);
+            return;
+        }
+
+        advancedSearch.SellerIds.Remove(sellerId);
+    }
+
+    private void ToggleAdvancedOrigin(string origin, ChangeEventArgs args)
+    {
+        if (args.Value is bool isChecked && isChecked)
+        {
+            advancedSearch.OriginValues.Add(origin);
+            return;
+        }
+
+        advancedSearch.OriginValues.Remove(origin);
+    }
+
+    private Task OnCustomerOriginChangedAsync(string selectedValue)
+    {
+        if (selectedValue == AddCustomerOriginValue)
+        {
+            isAddingCustomerOrigin = true;
+            customerOriginOptionMessage = null;
+            return Task.CompletedTask;
+        }
+
+        customerInput.Origin = selectedValue;
+        isAddingCustomerOrigin = false;
+        newCustomerOriginName = "";
+        customerOriginOptionMessage = null;
+        return Task.CompletedTask;
+    }
+
+    private Task OnAddressTypeChangedAsync(string selectedValue)
+    {
+        if (selectedValue == AddAddressTypeValue)
+        {
+            isAddingAddressType = true;
+            addressTypeOptionMessage = null;
+            return Task.CompletedTask;
+        }
+
+        addressInput.Type = selectedValue;
+        isAddingAddressType = false;
+        newAddressTypeName = "";
+        addressTypeOptionMessage = null;
+        return Task.CompletedTask;
+    }
+
+    private void CancelCustomerOriginOption()
+    {
+        isAddingCustomerOrigin = false;
+        newCustomerOriginName = "";
+        customerOriginOptionMessage = null;
+    }
+
+    private void CancelAddressTypeOption()
+    {
+        isAddingAddressType = false;
+        newAddressTypeName = "";
+        addressTypeOptionMessage = null;
+    }
+
+    private async Task SaveCustomerOriginOptionAsync()
+    {
+        if (isSavingCustomerOriginOption)
+        {
+            return;
+        }
+
+        isSavingCustomerOriginOption = true;
+        customerOriginOptionMessage = null;
+
+        try
+        {
+            var result = await CreateDropdownOptionAsync(
+                CustomerDropdownOptionKind.CustomerOrigin,
+                newCustomerOriginName,
+                customerOriginOptions);
+
+            if (!result.IsSuccess)
+            {
+                customerOriginOptionMessage = result.Message;
+                customerOriginOptionMessageIsError = true;
+                return;
+            }
+
+            await LoadDropdownOptionsAsync();
+            customerInput.Origin = result.Value;
+            isAddingCustomerOrigin = false;
+            newCustomerOriginName = "";
+            customerOriginOptionMessage = result.Message;
+            customerOriginOptionMessageIsError = false;
+        }
+        finally
+        {
+            isSavingCustomerOriginOption = false;
+        }
+    }
+
+    private async Task SaveAddressTypeOptionAsync()
+    {
+        if (isSavingAddressTypeOption)
+        {
+            return;
+        }
+
+        isSavingAddressTypeOption = true;
+        addressTypeOptionMessage = null;
+
+        try
+        {
+            var result = await CreateDropdownOptionAsync(
+                CustomerDropdownOptionKind.AddressType,
+                newAddressTypeName,
+                addressTypeOptions);
+
+            if (!result.IsSuccess)
+            {
+                addressTypeOptionMessage = result.Message;
+                addressTypeOptionMessageIsError = true;
+                return;
+            }
+
+            await LoadDropdownOptionsAsync();
+            addressInput.Type = result.Value;
+            isAddingAddressType = false;
+            newAddressTypeName = "";
+            addressTypeOptionMessage = result.Message;
+            addressTypeOptionMessageIsError = false;
+        }
+        finally
+        {
+            isSavingAddressTypeOption = false;
+        }
+    }
+
+    private async Task<DropdownOptionSaveResult> CreateDropdownOptionAsync(
+        CustomerDropdownOptionKind kind,
+        string name,
+        IReadOnlyList<DropdownOption> currentOptions)
+    {
+        var optionName = CompactOptionName(name);
+        if (string.IsNullOrWhiteSpace(optionName))
+        {
+            return DropdownOptionSaveResult.Error("Informe o nome da nova opcao.");
+        }
+
+        if (optionName.Length > DropdownOptionNameMaxLength)
+        {
+            return DropdownOptionSaveResult.Error($"Use ate {DropdownOptionNameMaxLength} caracteres.");
+        }
+
+        var normalizedName = NormalizeOptionName(optionName);
+        var existingOption = currentOptions.FirstOrDefault(option =>
+            NormalizeOptionName(option.Label) == normalizedName
+            || NormalizeOptionName(option.Value) == normalizedName);
+
+        if (existingOption is not null)
+        {
+            return DropdownOptionSaveResult.Success(existingOption.Value, "Opcao ja existente selecionada.");
+        }
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var persistedOption = await dbContext.CustomerDropdownOptions
+            .FirstOrDefaultAsync(option => option.Kind == kind && option.NormalizedName == normalizedName);
+
+        if (persistedOption is not null)
+        {
+            return DropdownOptionSaveResult.Success(persistedOption.Name, "Opcao ja existente selecionada.");
+        }
+
+        dbContext.CustomerDropdownOptions.Add(new CustomerDropdownOption
+        {
+            Kind = kind,
+            Name = optionName,
+            NormalizedName = normalizedName
+        });
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return DropdownOptionSaveResult.Error("Nao foi possivel adicionar a opcao. Tente novamente.");
+        }
+
+        return DropdownOptionSaveResult.Success(optionName, "Opcao adicionada e selecionada.");
+    }
+
+    private void MaskPostalCodeInput(ChangeEventArgs args)
+    {
+        addressInput.PostalCode = FormatPostalCodeInput(args.Value?.ToString());
+    }
+
+    private async Task LookupAddressByPostalCodeAsync()
+    {
+        if (isLookingUpAddress)
+        {
+            return;
+        }
+
+        var digits = OnlyDigits(addressInput.PostalCode);
+        if (digits.Length != 8)
+        {
+            addressMessage = "Informe um CEP com 8 digitos para buscar automaticamente.";
+            addressMessageIsError = true;
+            return;
+        }
+
+        isLookingUpAddress = true;
+        addressMessage = null;
+
+        var address = await ViaCepLookup.FindAddressAsync(digits);
+
+        if (address is null)
+        {
+            addressMessage = "CEP nao localizado. Preencha o endereco manualmente.";
+            addressMessageIsError = true;
+        }
+        else
+        {
+            addressInput.PostalCode = FormatPostalCode(address.PostalCode);
+            addressInput.Street = address.Street;
+            addressInput.Neighborhood = address.Neighborhood;
+            addressInput.City = address.City;
+            addressInput.State = address.State;
+            addressMessage = "Endereco localizado pelo CEP.";
+            addressMessageIsError = false;
+        }
+
+        isLookingUpAddress = false;
+    }
+
+    private void AddAddress()
+    {
+        var postalCode = OnlyDigits(addressInput.PostalCode);
+        var state = (addressInput.State ?? "").Trim().ToUpperInvariant();
+
+        if (postalCode.Length != 8)
+        {
+            SetAddressError("Informe um CEP valido com 8 digitos.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(addressInput.Street)
+            || string.IsNullOrWhiteSpace(addressInput.Number)
+            || string.IsNullOrWhiteSpace(addressInput.Neighborhood)
+            || string.IsNullOrWhiteSpace(addressInput.City)
+            || state.Length != 2)
+        {
+            SetAddressError("Preencha logradouro, numero, bairro, cidade e UF antes de adicionar.");
+            return;
+        }
+
+        customerInput.Addresses.Add(new AddressInput
+        {
+            Type = addressInput.Type,
+            PostalCode = postalCode,
+            Street = addressInput.Street.Trim(),
+            Number = addressInput.Number.Trim(),
+            Neighborhood = addressInput.Neighborhood.Trim(),
+            City = addressInput.City.Trim(),
+            State = state,
+            Complement = TrimToNull(addressInput.Complement)
+        });
+
+        addressInput = new();
+        addressMessage = "Endereco adicionado ao cliente.";
+        addressMessageIsError = false;
+    }
+
+    private void RemoveAddress(int index)
+    {
+        if (index < 0 || index >= customerInput.Addresses.Count)
+        {
+            return;
+        }
+
+        customerInput.Addresses.RemoveAt(index);
+    }
+
+    private async Task SaveCustomerAsync()
+    {
+        formMessage = null;
+        formMessageIsError = false;
+        var customerId = editingCustomerId;
+        var isEditing = customerId is not null;
+
+        var documentNumber = OnlyDigits(customerInput.DocumentNumber);
+        var expectedDocumentLength = customerInput.Type == CustomerType.Individual ? 11 : 14;
+        if (documentNumber.Length != expectedDocumentLength)
+        {
+            SetFormError($"Informe um {DocumentLabel} valido.");
+            return;
+        }
+
+        if (customerInput.Addresses.Count == 0)
+        {
+            SetFormError("Adicione ao menos um endereco para o cliente.");
+            return;
+        }
+
+        var seller = await UserManager.FindByIdAsync(customerInput.SellerId ?? "");
+        if (seller is null || !await UserManager.IsInRoleAsync(seller, AppRoles.Vendedor))
+        {
+            SetFormError("Selecione um vendedor responsavel valido.");
+            return;
+        }
+
+        isSaving = true;
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var documentExists = await dbContext.Customers.AnyAsync(customer => customer.DocumentNumber == documentNumber && customer.Id != customerId);
+        if (documentExists)
+        {
+            isSaving = false;
+            SetFormError("Ja existe um cliente cadastrado com este documento.");
+            return;
+        }
+
+        try
+        {
+            if (isEditing)
+            {
+                var customer = await dbContext.Customers
+                    .Include(customer => customer.Addresses)
+                    .FirstOrDefaultAsync(customer => customer.Id == customerId);
+
+                if (customer is null)
+                {
+                    SetFormError("Cliente nao localizado para edicao.");
+                    return;
+                }
+
+                ApplyCustomerInput(customer, documentNumber, seller.Id);
+                customer.UpdatedAt = DateTimeOffset.UtcNow;
+                dbContext.CustomerAddresses.RemoveRange(customer.Addresses.ToList());
+                customer.Addresses.Clear();
+
+                foreach (var address in customerInput.Addresses.Select(CreateCustomerAddress))
+                {
+                    customer.Addresses.Add(address);
+                }
+            }
+            else
+            {
+                var customer = new Customer();
+                ApplyCustomerInput(customer, documentNumber, seller.Id);
+
+                foreach (var address in customerInput.Addresses.Select(CreateCustomerAddress))
+                {
+                    customer.Addresses.Add(address);
+                }
+
+                dbContext.Customers.Add(customer);
+            }
+
+            await dbContext.SaveChangesAsync();
+            ResetForm();
+            formMessage = isEditing ? "Cliente atualizado com sucesso." : "Cliente cadastrado com sucesso.";
+            formMessageIsError = false;
+            pendingDeleteCustomerId = null;
+            await LoadCustomersAsync();
+        }
+        catch (DbUpdateException)
+        {
+            SetFormError("Nao foi possivel salvar o cliente. Verifique os dados e tente novamente.");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task EditCustomerAsync(int customerId)
+    {
+        formMessage = null;
+        addressMessage = null;
+        viewingCustomer = null;
+        pendingDeleteCustomerId = null;
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var customer = await dbContext.Customers
+            .AsNoTracking()
+            .Include(customer => customer.Addresses)
+            .FirstOrDefaultAsync(customer => customer.Id == customerId);
+
+        if (customer is null)
+        {
+            SetFormError("Cliente nao localizado para edicao.");
+            return;
+        }
+
+        editingCustomerId = customer.Id;
+        customerInput.Type = customer.Type;
+        customerInput.Status = customer.Status;
+        customerInput.DocumentNumber = FormatDocument(customer.DocumentNumber, customer.Type);
+        customerInput.Name = customer.Name;
+        customerInput.Email = customer.Email;
+        customerInput.BusinessPhone = customer.BusinessPhone;
+        customerInput.MobilePhone = customer.MobilePhone;
+        customerInput.Website = customer.Website;
+        customerInput.SellerId = customer.SellerId;
+        customerInput.CompanyName = customer.CompanyName;
+        customerInput.Origin = customer.Origin;
+        customerInput.Notes = customer.Notes;
+        customerInput.Addresses.Clear();
+
+        foreach (var address in customer.Addresses.OrderBy(address => address.Id))
+        {
+            customerInput.Addresses.Add(new AddressInput
+            {
+                Type = address.Type,
+                PostalCode = FormatPostalCode(address.PostalCode),
+                Street = address.Street,
+                Number = address.Number,
+                Neighborhood = address.Neighborhood,
+                City = address.City,
+                State = address.State,
+                Complement = address.Complement
+            });
+        }
+
+        addressInput = new();
+        isAddingCustomerOrigin = false;
+        isAddingAddressType = false;
+        newCustomerOriginName = "";
+        newAddressTypeName = "";
+        customerOriginOptionMessage = null;
+        addressTypeOptionMessage = null;
+        formMessage = $"Editando {customer.Name}.";
+        formMessageIsError = false;
+        isCustomerFormOpen = true;
+    }
+
+    private async Task ViewCustomerAsync(int customerId)
+    {
+        formMessage = null;
+        pendingDeleteCustomerId = null;
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var customer = await dbContext.Customers
+            .AsNoTracking()
+            .Include(customer => customer.Seller)
+            .Include(customer => customer.Addresses)
+            .FirstOrDefaultAsync(customer => customer.Id == customerId);
+
+        if (customer is null)
+        {
+            SetFormError("Cliente nao localizado para visualizacao.");
+            return;
+        }
+
+        viewingCustomer = new CustomerDetails(
+            customer.Id,
+            customer.Type,
+            customer.Status,
+            customer.DocumentNumber,
+            customer.Name,
+            customer.Email,
+            customer.BusinessPhone,
+            customer.MobilePhone,
+            customer.Website,
+            customer.CompanyName,
+            customer.Origin,
+            string.IsNullOrWhiteSpace(customer.Seller.DisplayName) ? customer.Seller.Email ?? customer.Seller.UserName ?? "Vendedor" : customer.Seller.DisplayName,
+            customer.Notes,
+            customer.Addresses
+                .OrderBy(address => address.Id)
+                .Select(address => new AddressInput
+                {
+                    Type = address.Type,
+                    PostalCode = FormatPostalCode(address.PostalCode),
+                    Street = address.Street,
+                    Number = address.Number,
+                    Neighborhood = address.Neighborhood,
+                    City = address.City,
+                    State = address.State,
+                    Complement = address.Complement
+                })
+                .ToList());
+
+        isCustomerFormOpen = false;
+    }
+
+    private void CloseCustomerDetails()
+    {
+        viewingCustomer = null;
+    }
+
+    private void RequestDeleteCustomer(int customerId)
+    {
+        pendingDeleteCustomerId = customerId;
+    }
+
+    private void CancelDeleteCustomer()
+    {
+        pendingDeleteCustomerId = null;
+    }
+
+    private async Task DeleteCustomerAsync(int customerId)
+    {
+        if (pendingDeleteCustomerId != customerId)
+        {
+            return;
+        }
+
+        await using var dbContext = await DbFactory.CreateDbContextAsync();
+        var customer = await dbContext.Customers.FirstOrDefaultAsync(customer => customer.Id == customerId);
+
+        if (customer is null)
+        {
+            pendingDeleteCustomerId = null;
+            SetFormError("Cliente nao localizado para exclusao.");
+            await LoadCustomersAsync();
+            return;
+        }
+
+        try
+        {
+            dbContext.Customers.Remove(customer);
+            await dbContext.SaveChangesAsync();
+            pendingDeleteCustomerId = null;
+            formMessage = "Cliente excluido com sucesso.";
+            formMessageIsError = false;
+            await LoadCustomersAsync();
+        }
+        catch (DbUpdateException)
+        {
+            SetFormError("Nao foi possivel excluir o cliente. Verifique se ha registros vinculados.");
+        }
+    }
+
+    private void ResetForm()
+    {
+        editingCustomerId = null;
+        customerInput.Type = CustomerType.Individual;
+        customerInput.Status = CustomerStatus.Active;
+        customerInput.DocumentNumber = "";
+        customerInput.Name = "";
+        customerInput.Email = null;
+        customerInput.BusinessPhone = null;
+        customerInput.MobilePhone = null;
+        customerInput.Website = null;
+        customerInput.SellerId = "";
+        customerInput.CompanyName = null;
+        customerInput.Origin = CustomerOrigin.Site.ToString();
+        customerInput.Notes = null;
+        customerInput.Addresses.Clear();
+        addressInput = new();
+        isCustomerFormOpen = false;
+        isAddingCustomerOrigin = false;
+        isAddingAddressType = false;
+        newCustomerOriginName = "";
+        newAddressTypeName = "";
+        customerOriginOptionMessage = null;
+        addressTypeOptionMessage = null;
+        formMessage = null;
+        addressMessage = null;
+    }
+
+    private void SetFormError(string message)
+    {
+        formMessage = message;
+        formMessageIsError = true;
+    }
+
+    private void SetAddressError(string message)
+    {
+        addressMessage = message;
+        addressMessageIsError = true;
+    }
+
+    private static string OnlyDigits(string? value) => new((value ?? "").Where(char.IsDigit).ToArray());
+
+    private static string? TrimToNull(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private static string? NormalizeWebsite(string? value)
+    {
+        var trimmed = TrimToNull(value);
+        if (trimmed is null)
+        {
+            return null;
+        }
+
+        return trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            ? trimmed
+            : $"https://{trimmed}";
+    }
+
+    private void ApplyCustomerInput(Customer customer, string documentNumber, string sellerId)
+    {
+        customer.Type = customerInput.Type;
+        customer.Status = customerInput.Status;
+        customer.DocumentNumber = documentNumber;
+        customer.Name = customerInput.Name.Trim();
+        customer.Email = TrimToNull(customerInput.Email);
+        customer.BusinessPhone = TrimToNull(customerInput.BusinessPhone);
+        customer.MobilePhone = TrimToNull(customerInput.MobilePhone);
+        customer.Website = NormalizeWebsite(customerInput.Website);
+        customer.SellerId = sellerId;
+        customer.CompanyName = TrimToNull(customerInput.CompanyName);
+        customer.Origin = customerInput.Origin;
+        customer.Notes = TrimToNull(customerInput.Notes);
+    }
+
+    private static CustomerAddress CreateCustomerAddress(AddressInput address) => new()
+    {
+        Type = address.Type,
+        PostalCode = OnlyDigits(address.PostalCode),
+        Street = address.Street.Trim(),
+        Number = address.Number.Trim(),
+        Neighborhood = address.Neighborhood.Trim(),
+        City = address.City.Trim(),
+        State = address.State.Trim().ToUpperInvariant(),
+        Complement = TrimToNull(address.Complement)
+    };
+
+    private static string FirstFilled(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "-";
+    }
+
+    private static string FormatDocument(string documentNumber, CustomerType type)
+    {
+        var digits = OnlyDigits(documentNumber);
+        if (type == CustomerType.Individual && digits.Length == 11)
+        {
+            return $"{digits[..3]}.{digits[3..6]}.{digits[6..9]}-{digits[9..]}";
+        }
+
+        if (type == CustomerType.Company && digits.Length == 14)
+        {
+            return $"{digits[..2]}.{digits[2..5]}.{digits[5..8]}/{digits[8..12]}-{digits[12..]}";
+        }
+
+        return documentNumber;
+    }
+
+    private static string FormatPostalCode(string postalCode)
+    {
+        var digits = OnlyDigits(postalCode);
+        return digits.Length == 8 ? $"{digits[..5]}-{digits[5..]}" : postalCode;
+    }
+
+    private static string FormatPostalCodeInput(string? postalCode)
+    {
+        var digits = OnlyDigits(postalCode);
+        if (digits.Length > 8)
+        {
+            digits = digits[..8];
+        }
+
+        return digits.Length > 5 ? $"{digits[..5]}-{digits[5..]}" : digits;
+    }
+
+    private static string FormatAddressLine(AddressInput address)
+    {
+        var complement = string.IsNullOrWhiteSpace(address.Complement) ? "" : $" - {address.Complement}";
+        return $"{address.Street}, {address.Number}{complement} - {address.Neighborhood}, {address.City}/{address.State}";
+    }
+
+    private static IReadOnlyList<DropdownOption> DefaultCustomerOriginOptions { get; } =
+        Enum.GetValues<CustomerOrigin>()
+            .Select(origin => new DropdownOption(origin.ToString(), FormatCustomerOrigin(origin)))
+            .ToList();
+
+    private static IReadOnlyList<DropdownOption> DefaultAddressTypeOptions { get; } =
+        Enum.GetValues<CustomerAddressType>()
+            .Select(type => new DropdownOption(type.ToString(), FormatAddressType(type)))
+            .ToList();
+
+    private static List<DropdownOption> BuildDropdownOptions(
+        CustomerDropdownOptionKind kind,
+        IReadOnlyList<DropdownOption> defaultOptions,
+        IEnumerable<CustomerDropdownOptionListItem> customOptions)
+    {
+        var options = defaultOptions.ToList();
+        var knownNames = options
+            .SelectMany(option => new[] { option.Value, option.Label })
+            .Select(NormalizeOptionName)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var option in customOptions.Where(option => option.Kind == kind))
+        {
+            var name = CompactOptionName(option.Name);
+            var normalizedName = NormalizeOptionName(name);
+
+            if (string.IsNullOrWhiteSpace(name) || !knownNames.Add(normalizedName))
+            {
+                continue;
+            }
+
+            options.Add(new DropdownOption(name, name));
+        }
+
+        return options;
+    }
+
+    private static string CompactOptionName(string? value)
+    {
+        var parts = (value ?? "").Trim().Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts);
+    }
+
+    private static string NormalizeOptionName(string? value) => CompactOptionName(value).ToUpperInvariant();
+
+    private static string FormatCustomerType(CustomerType type) => type switch
+    {
+        CustomerType.Individual => "Pessoa fisica",
+        CustomerType.Company => "Pessoa juridica",
+        _ => type.ToString()
+    };
+
+    private static string FormatCustomerStatus(CustomerStatus status) => status switch
+    {
+        CustomerStatus.Active => "Ativo",
+        CustomerStatus.Inactive => "Inativo",
+        _ => status.ToString()
+    };
+
+    private static string FormatCustomerOrigin(string origin) =>
+        Enum.TryParse<CustomerOrigin>(origin, out var knownOrigin) ? FormatCustomerOrigin(knownOrigin) : origin;
+
+    private static string FormatCustomerOrigin(CustomerOrigin origin) => origin switch
+    {
+        CustomerOrigin.Site => "Site",
+        CustomerOrigin.Instagram => "Instagram",
+        CustomerOrigin.Referral => "Indicacao",
+        CustomerOrigin.Builder => "Construtora",
+        CustomerOrigin.Facebook => "Facebook",
+        CustomerOrigin.FormerCustomer => "Cliente antigo",
+        _ => origin.ToString()
+    };
+
+    private static string FormatAddressType(string type) =>
+        Enum.TryParse<CustomerAddressType>(type, out var knownType) ? FormatAddressType(knownType) : type;
+
+    private static string FormatAddressType(CustomerAddressType type) => type switch
+    {
+        CustomerAddressType.Residential => "Residencial",
+        CustomerAddressType.Business => "Empresarial",
+        CustomerAddressType.JobSite => "Local da obra",
+        _ => type.ToString()
+    };
+
+    private sealed class CustomerInput
+    {
+        public CustomerType Type { get; set; } = CustomerType.Individual;
+
+        public CustomerStatus Status { get; set; } = CustomerStatus.Active;
+
+        [Required(ErrorMessage = "Informe o documento.")]
+        [MaxLength(18, ErrorMessage = "Documento muito longo.")]
+        public string DocumentNumber { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe o nome.")]
+        [MaxLength(160, ErrorMessage = "Nome muito longo.")]
+        public string Name { get; set; } = "";
+
+        [EmailAddress(ErrorMessage = "Informe um e-mail valido.")]
+        [MaxLength(256, ErrorMessage = "E-mail muito longo.")]
+        public string? Email { get; set; }
+
+        [MaxLength(30, ErrorMessage = "Telefone comercial muito longo.")]
+        public string? BusinessPhone { get; set; }
+
+        [MaxLength(30, ErrorMessage = "Telefone celular muito longo.")]
+        public string? MobilePhone { get; set; }
+
+        [MaxLength(200, ErrorMessage = "Site muito longo.")]
+        public string? Website { get; set; }
+
+        [Required(ErrorMessage = "Selecione o vendedor responsavel.")]
+        public string? SellerId { get; set; } = "";
+
+        [MaxLength(160, ErrorMessage = "Empresa/construtora muito longa.")]
+        public string? CompanyName { get; set; }
+
+        [Required(ErrorMessage = "Selecione a origem do cliente.")]
+        [MaxLength(80, ErrorMessage = "Origem do cliente muito longa.")]
+        public string Origin { get; set; } = CustomerOrigin.Site.ToString();
+
+        [MaxLength(1000, ErrorMessage = "Observacoes muito longas.")]
+        public string? Notes { get; set; }
+
+        public List<AddressInput> Addresses { get; } = [];
+    }
+
+    private sealed class AddressInput
+    {
+        public string Type { get; set; } = CustomerAddressType.Residential.ToString();
+
+        public string PostalCode { get; set; } = "";
+
+        public string Street { get; set; } = "";
+
+        public string Number { get; set; } = "";
+
+        public string Neighborhood { get; set; } = "";
+
+        public string City { get; set; } = "";
+
+        public string State { get; set; } = "";
+
+        public string? Complement { get; set; }
+    }
+
+    private sealed record SellerOption(string Id, string Name);
+
+    private sealed record DropdownOption(string Value, string Label);
+
+    private sealed record CustomerDropdownOptionListItem(CustomerDropdownOptionKind Kind, string Name);
+
+    private sealed record DropdownOptionSaveResult(bool IsSuccess, string Value, string Message)
+    {
+        public static DropdownOptionSaveResult Success(string value, string message) => new(true, value, message);
+
+        public static DropdownOptionSaveResult Error(string message) => new(false, "", message);
+    }
+
+    private sealed class CustomerAdvancedSearch
+    {
+        public string CustomerType { get; set; } = "";
+
+        public string Status { get; set; } = "";
+
+        public string AddressType { get; set; } = "";
+
+        public HashSet<string> OriginValues { get; } = [];
+
+        public HashSet<string> SellerIds { get; } = [];
+
+        public int ActiveFilterCount
+        {
+            get
+            {
+                var count = 0;
+                count += string.IsNullOrWhiteSpace(CustomerType) ? 0 : 1;
+                count += string.IsNullOrWhiteSpace(Status) ? 0 : 1;
+                count += OriginValues.Count == 0 ? 0 : 1;
+                count += string.IsNullOrWhiteSpace(AddressType) ? 0 : 1;
+                count += SellerIds.Count == 0 ? 0 : 1;
+                return count;
+            }
+        }
+
+        public CustomerAdvancedSearch Clone()
+        {
+            var clone = new CustomerAdvancedSearch
+            {
+                CustomerType = CustomerType,
+                Status = Status,
+                AddressType = AddressType
+            };
+
+            foreach (var origin in OriginValues)
+            {
+                clone.OriginValues.Add(origin);
+            }
+
+            foreach (var sellerId in SellerIds)
+            {
+                clone.SellerIds.Add(sellerId);
+            }
+
+            return clone;
+        }
+    }
+
+    private sealed record CustomerDetails(
+        int Id,
+        CustomerType Type,
+        CustomerStatus Status,
+        string DocumentNumber,
+        string Name,
+        string? Email,
+        string? BusinessPhone,
+        string? MobilePhone,
+        string? Website,
+        string? CompanyName,
+        string Origin,
+        string SellerName,
+        string? Notes,
+        IReadOnlyList<AddressInput> Addresses);
+
+    private sealed record CustomerListItem(
+        int Id,
+        CustomerType Type,
+        CustomerStatus Status,
+        string DocumentNumber,
+        string Name,
+        string? Email,
+        string? BusinessPhone,
+        string? MobilePhone,
+        string? Website,
+        string? CompanyName,
+        string Origin,
+        string SellerName,
+        int AddressCount);
+}
